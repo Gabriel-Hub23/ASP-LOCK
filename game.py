@@ -22,7 +22,7 @@ class Game():
         self.credits = CreditsMenu(self)
         self.curr_menu = self.main_menu
         #new:
-        self.clock = pygame.time.Clock()
+        #self.clock = pygame.time.Clock()
 
     def game_loop(self):
             #new:
@@ -35,13 +35,14 @@ class Game():
             #put canvas on screen
             self.display.fill(self.BLACK) #reset screen by filling it black (flipbook vibes)
             maze_game.draw_maze()
+            maze_game.draw_silly()
             maze_game.draw_player()
-            maze_game.handle_input()
+            maze_game.handle_input_player()
             #self.draw_text('Thanks for Playing', 20, self.DISPLAY_W/2, self.DISPLAY_H/2) #center of circle
             self.window.blit(self.display, (0, 0)) #align display with window
             pygame.display.update() #moves image onto the screen
             #new:
-            self.clock.tick(6) #speed
+           # self.clock.tick(6) #speed
             #
             self.reset_keys()
 
@@ -75,42 +76,69 @@ class MazeGame:
         self.game = game
         self.maze = [
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1],
-            [1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1],
-            [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-            [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-            [1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1],
-            [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
-            [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1],
-            [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1],
+            [1, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1],
+            [1, 2, 2, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1],
+            [1, 2, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1],
+            [1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 2, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 2, 1],
+            [1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1],
+            [1, 1, 2, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 1, 1],
+            [1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1],
+            [1, 2, 1, 1, 2, 1, 1, 2, 1, 2, 1, 1, 2, 1, 1, 2, 1],
+            [1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 1, 1, 2, 1],
+            [1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 1],
+            [1, 2, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 1],
+            [1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ]
-        self.player_pos = [1, 1]
-        #self.enemy_pos = [3, 3]
+        #new:
+        self.clock = pygame.time.Clock()
         self.cell_size = 30
-        self.player_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\lock_n_chase\player_images\start.png")
+
+        self.player_pos = [1, 1]
+        self.player_score = 0
+        self.player_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\coloured images\lupin_colour-Photoroom.png")
         self.player_image = pygame.transform.scale(self.player_image, (self.cell_size, self.cell_size))
+
+        self.silly_pos = [1, 2]
+        self.silly_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\coloured images\silly_colour.png")
+        self.silly_image = pygame.transform.scale(self.silly_image, (self.cell_size, self.cell_size))
+
+        self.coin_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\coloured images\coin_colour.png")
+        self.coin_image = pygame.transform.scale(self.coin_image, (self.cell_size, self.cell_size))
 
     def draw_maze(self):
         for row_index, row in enumerate(self.maze):
             for col_index, cell in enumerate(row):
                 x, y = col_index*self.cell_size, row_index*self.cell_size
-                color = (0,0,0) if cell == 1 else (255,255,255)
-                pygame.draw.rect(self.game.display, color, (x, y, self.cell_size, self.cell_size))
+                if cell == 1:
+                    pygame.draw.rect(self.game.display, (99, 168, 89), (x, y, self.cell_size, self.cell_size))
+                    pygame.draw.rect(self.game.display, (34, 128, 20), (x, y, self.cell_size, self.cell_size), width=1)
+                    offset = self.cell_size // 4 #to draw X in the rectangles which r actually squares lol
+                    pygame.draw.line(self.game.display, (79, 130, 72), (x + offset, y + offset), (x + self.cell_size - offset, y + self.cell_size - offset), 2)
+                    pygame.draw.line(self.game.display, (79, 130, 72), (x + self.cell_size - offset, y + offset), (x + offset, y + self.cell_size - offset), 2)
+                elif cell == 0:
+                    colour = (245, 221, 203)
+                    pygame.draw.rect(self.game.display, colour, (x, y, self.cell_size, self.cell_size))
+                elif cell == 2: #coin
+                    self.game.display.blit(self.coin_image, (x, y))        
+                    print(f'cell printed at: {row_index}{col_index}')           
+        self.game.draw_text(f'Score: {self.player_score}', size=24, x=200, y=600)
 
     def draw_player(self):
         x, y = self.player_pos[1]*self.cell_size, self.player_pos[0]*self.cell_size
         #pygame.draw.rect(self.game.display, (0, 255, 0), (x, y, self.cell_size, self.cell_size))
         self.game.display.blit(self.player_image, (x, y))
+        print('player printed')
 
-    def handle_input(self):
+    def draw_silly(self):
+        x, y = self.silly_pos[1] * self.cell_size, self.silly_pos[0] * self.cell_size
+        self.game.display.blit(self.silly_image, (x, y))
+        print('silly printed')
+
+    def handle_input_player(self):
         keys = pygame.key.get_pressed() #this function actually returns a series of boolean values xD
         if keys[pygame.K_w]: #up
             self.move_player(-1, 0)
@@ -125,13 +153,42 @@ class MazeGame:
         new_x, new_y = self.player_pos[0]+row_offset, self.player_pos[1]+col_offset
         if self.maze[new_x][new_y] == 0:
             self.player_pos = [new_x, new_y]
+        elif self.maze[new_x][new_y] == 2:
+            self.player_pos = [new_x, new_y]
+            self.player_score += 10
+            self.maze[new_x][new_y] = 0
+            print(f'score: {self.player_score}')
 
+    def move_silly(self, row_offset, col_offset):
+        new_x, new_y = self.silly_pos[0]+row_offset, self.silly_pos[1]+col_offset
+        if self.maze[new_x][new_y] == 0:
+            self.silly_pos = [new_x, new_y]
+        elif self.maze[new_x][new_y] == 2:
+            self.silly_pos = [new_x, new_y]
+
+        # elif == players coords, then player's lives--
+
+        pass
+
+    '''def game_loop(self):
+        while self.game.playing:
+            self.game.check_events()
+            self.handle_input_player()
+            self.game.display.fill(0,0,0) #cls
+            self.draw_maze()
+            self.draw_player()
+            self.draw_silly() #silly drawn to game
+            pygame.display.update()
+            self.game.reset_keys()'''
+    
     def game_loop(self):
         while self.game.playing:
             self.game.check_events()
-            self.handle_input()
-            self.game.display.fill((0,0,0)) #cls
+            self.handle_input_player()
+            self.game.display.fill((0, 0, 0)) #cls
             self.draw_maze()
             self.draw_player()
+            self.draw_silly()
             pygame.display.update()
+            self.clock.tick(6) #control frame rate
             self.game.reset_keys()
