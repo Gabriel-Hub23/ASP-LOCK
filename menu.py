@@ -31,7 +31,7 @@ class MainMenu(Menu): #inherited Menu class
             self.game.check_events() #sets all the flags for the logic of cursor movement
             self.check_input()
             self.game.display.fill(self.game.BLACK)
-            self.game.draw_text('Lock N Chase', 70, self.game.DISPLAY_W/2, self.game.DISPLAY_H/4) #align
+            self.game.draw_text('Lock n Chase', 70, self.game.DISPLAY_W/2, self.game.DISPLAY_H/4) #align
             self.game.draw_text("Start Game", 35, self.startx, self.starty)
             self.game.draw_text("Options", 35, self.optionsx, self.optionsy)
             self.game.draw_text("Credits", 35, self.creditsx, self.creditsy)

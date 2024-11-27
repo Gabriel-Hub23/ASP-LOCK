@@ -21,17 +21,28 @@ class Game():
         self.options = OptionsMenu(self)
         self.credits = CreditsMenu(self)
         self.curr_menu = self.main_menu
+        #new:
+        self.clock = pygame.time.Clock()
 
     def game_loop(self):
+            #new:
+        maze_game = MazeGame(self)
+            #
         while self.playing:
             self.check_events()
             if self.START_KEY: #player clicks to end
                 self.playing = False
             #put canvas on screen
             self.display.fill(self.BLACK) #reset screen by filling it black (flipbook vibes)
-            self.draw_text('Thanks for Playing', 20, self.DISPLAY_W/2, self.DISPLAY_H/2) #center of circle
+            maze_game.draw_maze()
+            maze_game.draw_player()
+            maze_game.handle_input()
+            #self.draw_text('Thanks for Playing', 20, self.DISPLAY_W/2, self.DISPLAY_H/2) #center of circle
             self.window.blit(self.display, (0, 0)) #align display with window
             pygame.display.update() #moves image onto the screen
+            #new:
+            self.clock.tick(6) #speed
+            #
             self.reset_keys()
 
     def check_events(self):
@@ -58,3 +69,69 @@ class Game():
         text_rect = text_surface.get_rect() #rectangle that will hold the text
         text_rect.center = (x, y)
         self.display.blit(text_surface, text_rect)
+
+class MazeGame:
+    def __init__(self, game):
+        self.game = game
+        self.maze = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1],
+            [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+            [1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 1],
+            [1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+            [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1],
+            [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ]
+        self.player_pos = [1, 1]
+        #self.enemy_pos = [3, 3]
+        self.cell_size = 30
+        self.player_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\lock_n_chase\player_images\start.png")
+        self.player_image = pygame.transform.scale(self.player_image, (self.cell_size, self.cell_size))
+
+    def draw_maze(self):
+        for row_index, row in enumerate(self.maze):
+            for col_index, cell in enumerate(row):
+                x, y = col_index*self.cell_size, row_index*self.cell_size
+                color = (0,0,0) if cell == 1 else (255,255,255)
+                pygame.draw.rect(self.game.display, color, (x, y, self.cell_size, self.cell_size))
+
+    def draw_player(self):
+        x, y = self.player_pos[1]*self.cell_size, self.player_pos[0]*self.cell_size
+        #pygame.draw.rect(self.game.display, (0, 255, 0), (x, y, self.cell_size, self.cell_size))
+        self.game.display.blit(self.player_image, (x, y))
+
+    def handle_input(self):
+        keys = pygame.key.get_pressed() #this function actually returns a series of boolean values xD
+        if keys[pygame.K_w]: #up
+            self.move_player(-1, 0)
+        if keys[pygame.K_s]: #down
+            self.move_player(1, 0)
+        if keys[pygame.K_a]: #left
+            self.move_player(0, -1)
+        if keys[pygame.K_d]: #right
+            self.move_player(0, 1)
+
+    def move_player(self, row_offset, col_offset):
+        new_x, new_y = self.player_pos[0]+row_offset, self.player_pos[1]+col_offset
+        if self.maze[new_x][new_y] == 0:
+            self.player_pos = [new_x, new_y]
+
+    def game_loop(self):
+        while self.game.playing:
+            self.game.check_events()
+            self.handle_input()
+            self.game.display.fill((0,0,0)) #cls
+            self.draw_maze()
+            self.draw_player()
+            pygame.display.update()
+            self.game.reset_keys()
