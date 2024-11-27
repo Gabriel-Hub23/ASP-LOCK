@@ -1,4 +1,4 @@
 # Lock 'n' Chase  
 
-**A Maze Game for Artificial Intelligence Course**  
-*Semester Project by Maha Qaiser and Nabeeha Shafiq*  
+**Semester Projecte for AL2002: Artificial Intelligence**  
+*A maze game by Maha Qaiser and Nabeeha Shafiq*  
