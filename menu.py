@@ -6,10 +6,10 @@ class Menu():
         self.mid_w, self.mid_h, = self.game.DISPLAY_W/2, self.game.DISPLAY_H/2
         self.run_display = True
         self.cursor_rect = pygame.Rect(0, 0, 20, 20) #rectangle because we're using the arrow key
-        self.offset = 200 #so it's on the left of our text --change----------------------------------------------------------------------
+        self.offset = 150 #so it's on the left of our text --change----------------------------------------------------------------------
     
     def draw_cursor(self):
-        self.game.draw_text('*', 15, self.cursor_rect.x, self.cursor_rect.y)
+        self.game.draw_text('*', 25, self.cursor_rect.x, self.cursor_rect.y)
 
     def blit_screen(self):
         self.game.window.blit(self.game.display, (0, 0)) #align display with window
@@ -20,18 +20,21 @@ class MainMenu(Menu): #inherited Menu class
     def __init__(self, game):
         Menu.__init__(self, game)
         self.state = "Start" #point cursor at start
-        self.startx, self.starty = self.mid_w, self.mid_h+65 #move height a bit down in the screen
-        self.optionsx, self.optionsy = self.mid_w, self.mid_h+115 #move height a bit down in the screen
-        self.creditsx, self.creditsy = self.mid_w, self.mid_h+165 #move height a bit down in the screen
+        self.startx, self.starty = self.mid_w, self.mid_h-55 #move height a bit down in the screen
+        self.optionsx, self.optionsy = self.mid_w, self.mid_h-5 #move height a bit down in the screen
+        self.creditsx, self.creditsy = self.mid_w, self.mid_h+45 #move height a bit down in the screen
         self.cursor_rect.midtop = (self.startx-self.offset, self.starty+4) #starting position of our cursor
-
+        self.background_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\coloured images/bg_game.png")
+        self.background_image = pygame.transform.scale(self.background_image, (self.game.DISPLAY_W, self.game.DISPLAY_H))
+    
     def display_menu(self):
         self.run_display = True #to make sure lol
         while self.run_display:
             self.game.check_events() #sets all the flags for the logic of cursor movement
             self.check_input()
             self.game.display.fill(self.game.BLACK)
-            self.game.draw_text('Lock n Chase', 70, self.game.DISPLAY_W/2, self.game.DISPLAY_H/4) #align
+            #self.game.draw_text("Lock 'n' Chase", 70, self.game.DISPLAY_W/2, self.game.DISPLAY_H/4) #align
+            self.game.display.blit(self.background_image, (0, 0))
             self.game.draw_text("Start Game", 35, self.startx, self.starty)
             self.game.draw_text("Options", 35, self.optionsx, self.optionsy)
             self.game.draw_text("Credits", 35, self.creditsx, self.creditsy)
@@ -41,23 +44,23 @@ class MainMenu(Menu): #inherited Menu class
     def move_cursor(self):
         if self.game.DOWN_KEY:
             if self.state == 'Start':
-                self.cursor_rect.midtop = (self.optionsx-self.offset+65, self.optionsy+4)
+                self.cursor_rect.midtop = (self.optionsx-self.offset+45, self.optionsy+4)
                 self.state = 'Options'
             elif self.state == 'Options':
-                self.cursor_rect.midtop = (self.creditsx-self.offset+65, self.creditsy+4)
+                self.cursor_rect.midtop = (self.creditsx-self.offset+45, self.creditsy+4)
                 self.state = 'Credits'
             elif self.state == 'Credits':
                 self.cursor_rect.midtop = (self.startx-self.offset, self.starty+4)
                 self.state = 'Start'
         elif self.game.UP_KEY:
             if self.state == 'Start':
-                self.cursor_rect.midtop = (self.creditsx-self.offset+65, self.creditsy+4)
+                self.cursor_rect.midtop = (self.creditsx-self.offset+45, self.creditsy+4)
                 self.state = 'Credits'
             elif self.state == 'Options':
                 self.cursor_rect.midtop = (self.startx-self.offset, self.starty+4)
                 self.state = 'Start'
             elif self.state == 'Credits':
-                self.cursor_rect.midtop = (self.optionsx-self.offset+65, self.optionsy+4)
+                self.cursor_rect.midtop = (self.optionsx-self.offset+45, self.optionsy+4)
                 self.state = 'Options'
             
     def check_input(self):
