@@ -6,13 +6,14 @@ class Game():
         pygame.init()
         self.running, self.playing = True, False
         self.UP_KEY, self.DOWN_KEY, self.START_KEY, self.BACK_KEY = False, False, False, False
-        self.DISPLAY_W, self.DISPLAY_H = 960, 700#960, 540#480, 270
+        self.DISPLAY_W, self.DISPLAY_H = 1280, 720#960, 700#960, 540#480, 270
         self.display = pygame.Surface((self.DISPLAY_W, self.DISPLAY_H))
         self.window = pygame.display.set_mode(((self.DISPLAY_W, self.DISPLAY_H)))
         #self.font_name = pygame.font.get_default_font()
         #self.font_name = "D:\VSCode Setup\Projects VSCode\8bit_wonder\8-BIT WONDER.TTF"
         #self.font_name = "D:\VSCode Setup\Projects VSCode\lock_n_chase/font\Money3D-mLA0a.ttf"
-        self.font_name = "D:\VSCode Setup\Projects VSCode/bad-guy-black-font\BadGuyBlack-Pv4g.ttf"
+        #self.font_name = "D:\VSCode Setup\Projects VSCode/bad-guy-black-font\BadGuyBlack-Pv4g.ttf"
+        self.font_name = "D:/VSCode Setup/Projects VSCode/NTBrickSans.ttf"
         self.BLACK, self.WHITE = (245, 221, 203), (196, 125, 18)
         #blue: 197, 219, 237
         #black: 0, 0, 0 self.BLACK isn't black rn lol
@@ -22,7 +23,12 @@ class Game():
         self.credits = CreditsMenu(self)
         self.curr_menu = self.main_menu
         #new:
-        #self.clock = pygame.time.Clock()
+        self.clock = pygame.time.Clock()
+
+        pygame.mixer.music.load("D:\VSCode Setup\Projects VSCode\lock_n_chase_ost_stage1-1.mp3") #add mp3 file
+        pygame.mixer.music.set_volume(0.2)
+        #pygame.mixer.music.play()
+        pygame.mixer.music.play(loops=-1)
 
     def game_loop(self):
             #new:
@@ -42,7 +48,7 @@ class Game():
             self.window.blit(self.display, (0, 0)) #align display with window
             pygame.display.update() #moves image onto the screen
             #new:
-           # self.clock.tick(6) #speed
+            self.clock.tick(7) #speed
             #
             self.reset_keys()
 
@@ -66,7 +72,7 @@ class Game():
 
     def draw_text(self, text, size, x, y):
         font = pygame.font.Font(self.font_name, size)
-        text_surface = font.render(text, True, self.WHITE) #True is for anti-aliasing
+        text_surface = font.render(text, True, (0, 0, 0)) #True is for anti-aliasing. using black for text
         text_rect = text_surface.get_rect() #rectangle that will hold the text
         text_rect.center = (x, y)
         self.display.blit(text_surface, text_rect)
@@ -94,7 +100,7 @@ class MazeGame:
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ]
         #new:
-        self.clock = pygame.time.Clock()
+        #self.clock = pygame.time.Clock()
         self.cell_size = 30
 
         self.player_pos = [1, 1]
@@ -169,17 +175,6 @@ class MazeGame:
         # elif == players coords, then player's lives--
 
         pass
-
-    '''def game_loop(self):
-        while self.game.playing:
-            self.game.check_events()
-            self.handle_input_player()
-            self.game.display.fill(0,0,0) #cls
-            self.draw_maze()
-            self.draw_player()
-            self.draw_silly() #silly drawn to game
-            pygame.display.update()
-            self.game.reset_keys()'''
     
     def game_loop(self):
         while self.game.playing:
@@ -190,5 +185,5 @@ class MazeGame:
             self.draw_player()
             self.draw_silly()
             pygame.display.update()
-            self.clock.tick(6) #control frame rate
+            #self.clock.tick(6) #control frame rate
             self.game.reset_keys()
