@@ -24,7 +24,7 @@ class MainMenu(Menu): #inherited Menu class
         self.optionsx, self.optionsy = self.mid_w, self.mid_h-5 #move height a bit down in the screen
         self.creditsx, self.creditsy = self.mid_w, self.mid_h+45 #move height a bit down in the screen
         self.cursor_rect.midtop = (self.startx-self.offset, self.starty+4) #starting position of our cursor
-        self.background_image = pygame.image.load("D:\VSCode Setup\Projects VSCode\coloured images/bg_game.png")
+        self.background_image = pygame.image.load("locknchase\stuff/bg_game.png")
         self.background_image = pygame.transform.scale(self.background_image, (self.game.DISPLAY_W, self.game.DISPLAY_H))
     
     def display_menu(self):
@@ -108,9 +108,11 @@ class OptionsMenu(Menu): #inherited Menu class
         elif self.game.START_KEY:
             pass #haven't made it yet (volume or control menu)
 
-class CreditsMenu(Menu):
+class CreditsMenu(Menu): #inherited Menu class
     def __init__(self, game):
         Menu.__init__(self, game)
+        self.credits_image = pygame.image.load("locknchase\stuff\credits_game.png")
+        self.credits_image = pygame.transform.scale(self.credits_image, (self.game.DISPLAY_W, self.game.DISPLAY_H))
 
     def display_menu(self):
         self.run_display = True
@@ -121,9 +123,10 @@ class CreditsMenu(Menu):
                 self.run_display = False
             #draw text and update screen
             self.game.display.fill(self.game.BLACK) #green is 203, 245, 203
-            self.game.draw_text("Developed by", 60, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 - 140)
-            self.game.draw_text("Maha Qaiser", 35, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 10)
-            self.game.draw_text("and", 15, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 50)
-            self.game.draw_text("Nabeeha Shafiq", 35, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 90)
+            #self.game.draw_text("Developed by", 60, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 - 140)
+            #self.game.draw_text("Maha Qaiser", 35, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 10)
+            #self.game.draw_text("and", 15, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 50)
+            #self.game.draw_text("Nabeeha Shafiq", 35, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 90)
+            self.game.display.blit(self.credits_image, (0, 0))
             self.blit_screen() #sets all flags back to false and displays screen
 
