@@ -33,7 +33,6 @@ class MainMenu(Menu): #inherited Menu class
             self.game.check_events() #sets all the flags for the logic of cursor movement
             self.check_input()
             self.game.display.fill(self.game.BLACK)
-            #self.game.draw_text("Lock 'n' Chase", 70, self.game.DISPLAY_W/2, self.game.DISPLAY_H/4) #align
             self.game.display.blit(self.background_image, (0, 0))
             self.game.draw_text("Start Game", 35, self.startx, self.starty)
             self.game.draw_text("Options", 35, self.optionsx, self.optionsy)
@@ -121,12 +120,7 @@ class CreditsMenu(Menu): #inherited Menu class
             if self.game.START_KEY or self.game.BACK_KEY: #way to send them back to the main menu
                 self.game.curr_menu = self.game.main_menu
                 self.run_display = False
-            #draw text and update screen
             self.game.display.fill(self.game.BLACK) #green is 203, 245, 203
-            #self.game.draw_text("Developed by", 60, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 - 140)
-            #self.game.draw_text("Maha Qaiser", 35, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 10)
-            #self.game.draw_text("and", 15, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 50)
-            #self.game.draw_text("Nabeeha Shafiq", 35, self.game.DISPLAY_W/2, self.game.DISPLAY_H/2 + 90)
             self.game.display.blit(self.credits_image, (0, 0))
             self.blit_screen() #sets all flags back to false and displays screen
 
