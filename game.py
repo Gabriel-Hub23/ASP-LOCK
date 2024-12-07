@@ -3,6 +3,7 @@ from menu import *
 import time
 import random
 import math
+import heapq
 
 class Game():
     def __init__(self):
@@ -32,43 +33,57 @@ class Game():
         #new:
         self.level_menu = LevelMenu(self)
         self.selected_level = 1 #default
-       
+    
     def game_loop(self):
         maze_game = MazeGame(self, level=self.selected_level)
-        move_delay_silly = 0
+        player_move_timer = 0
+        silly_move_timer = 0
+        player_delay = 5
+        silly_delay = 10
+
         while self.playing:
             self.check_events()
-            if self.BACK_KEY: #player clicks to end
+            if self.BACK_KEY:
                 self.playing = False
-            if maze_game.lives <= 0: #player game over -> go back to main menu ------------------------------------game won/lost screen?
+            if maze_game.lives <= 0:
                 self.playing = False
                 self.curr_menu = self.main_menu
                 break
-            #put canvas on screen
-            self.display.fill(self.BLACK) #reset screen by filling it black (flipbook vibes)
+
+            self.display.fill(self.BLACK)
+
             maze_game.update_lock()
             maze_game.draw_maze()
-            maze_game.draw_silly()
             maze_game.draw_player()
-            maze_game.handle_input_player()
-            #dynamicaaly move silly 
-            if maze_game.level == 1:
-                if move_delay_silly % 10 == 0:  # itni movs k baad do simmulated annealing thing
-                #maze_game.handle_input_silly_level1_simulated_annealing()
-                    maze_game.step_simulated_annealing()
-                    move_delay_silly = 0
-                move_delay_silly += 1
-            maze_game.check_collisions()
-            #if level == 1, then handle_silly_input_level1
+            maze_game.draw_silly()
 
-            #maze_game.check_collisions()
-            #self.draw_text('Thanks for Playing', 20, self.DISPLAY_W/2, self.DISPLAY_H/2) #center of circle
-            self.window.blit(self.display, (0, 0)) #align display with window
-            pygame.display.update() #moves image onto the screen
-            #new:
-            self.clock.tick(5) #speed
-            #
+            if player_move_timer >= player_delay:
+                maze_game.handle_input_player()
+                player_move_timer = 0
+
+            if silly_move_timer >= silly_delay:
+                if maze_game.level == 1:
+                    maze_game.handle_input_silly_level1_simulated_annealing()
+                elif maze_game.level == 2:
+                    if maze_game.player_moved or maze_game.obstacle_changed or not maze_game.path:
+                        maze_game.path = maze_game.a_star_search(tuple(maze_game.silly_pos), tuple(maze_game.player_pos))
+                        maze_game.player_moved = False
+                        maze_game.obstacle_changed = False
+                    if maze_game.path:
+                        next_pos = maze_game.path.pop(0)
+                        if not maze_game.move_silly_locks(next_pos):
+                            maze_game.path = maze_game.a_star_search(tuple(maze_game.silly_pos), tuple(maze_game.player_pos))
+
+                silly_move_timer = 0 
+
+            player_move_timer += 1
+            silly_move_timer += 1
+            maze_game.check_collisions()
+            self.window.blit(self.display, (0, 0))
+            pygame.display.update()
+            self.clock.tick(60) #60 fps lol
             self.reset_keys()
+
 
     def check_events(self):
         for event in pygame.event.get():
@@ -161,12 +176,22 @@ class MazeGame:
         self.lock_image = pygame.image.load("locknchase/stuff/lock.png")
         self.lock_image = pygame.transform.scale(self.lock_image, (self.cell_size, self.cell_size))
 
+        # #animation/interpolation stuff
+        # self.animation_speed = 10  #adjust for smoothness (as needed)
+        # #self.player_animation_progress = 0.0
+        # #self.player_target_pos = self.player_pos[:]
+        # self.silly_animation_progress = 0.0
+        # self.silly_target_pos = self.silly_pos[:]
+        # self.silly_old_pos = self.silly_pos[:]
 
         # -------------- simulated annealing --------------
-        self.temperature = 1.0  
+        self.temperature = 50.0 # now ive set it to a high value bcz i dont know how long the game is gonna keep runnning so i need a large value that would kind of sustain till end moves  
         self.cooling_factor = 0.99
         self.temperature_min = 0.01
-        # -------------------------------------------------
+        #-------------a_star+csp----------------------------
+        self.path=[] #this is the shortest path silly would take to catch lupin 
+        self.player_moved = False
+        self.obstacle_changed = False
         
     def draw_maze(self):
         if self.lives == 3:
@@ -202,6 +227,20 @@ class MazeGame:
         self.game.display.blit(self.silly_image, (x, y))
         #print('silly printed')
 
+    # def draw_silly(self):
+    #     x = self.silly_old_pos[1] * self.cell_size + self.x_offset
+    #     y = self.silly_old_pos[0] * self.cell_size + self.y_offset
+    #     target_x = self.silly_target_pos[1] * self.cell_size + self.x_offset
+    #     target_y = self.silly_target_pos[0] * self.cell_size + self.y_offset
+
+    #     interpolated_x = x + (target_x - x) * self.silly_animation_progress
+    #     interpolated_y = y + (target_y - y) * self.silly_animation_progress
+    #     self.game.display.blit(self.silly_image, (interpolated_x, interpolated_y))
+
+    #     if self.silly_animation_progress < 1.0:
+    #         self.silly_animation_progress += 1.0 / self.animation_speed
+
+
     def handle_input_player(self):
         keys = pygame.key.get_pressed() #this function actually returns a series of boolean values xD
         if keys[pygame.K_w]: #up
@@ -219,14 +258,19 @@ class MazeGame:
         if self.lock_pos is None and self.player_old_pos != self.silly_pos:
             self.lock_pos = self.player_old_pos[:] #shallow copy of list, separate object in memory
             self.lock_timer = time.time() #start timer
+            self.obstacle_changed=True
             print(f"lock placed at: {self.lock_pos}")
     
     def update_lock(self):
         if self.lock_pos and time.time() - self.lock_timer >= 5: #5 seconds passed
             self.lock_pos = None
+            self.obstacle_changed=False
             print(f"lock removed from: {self.lock_pos}")
 
     def check_collisions(self):
+        print("i am in check collision function")
+        print("player pos "+str(self.player_pos))
+        print("silly pos "+str(self.silly_pos))
         if self.player_pos == self.silly_pos:
             self.life_lost_sound.play()
             self.lives -= 1 #lives--
@@ -234,30 +278,52 @@ class MazeGame:
             #now reset positions:
             self.player_pos = [15, 1]
             self.silly_pos = [1, 1]
+            self.path=None
             # if self.lives == 0: #check if lives r 0
             #     print("game over")
             #     self.game.playing = False
 
-    def move_player(self, row_offset, col_offset):
-        new_x, new_y = self.player_pos[0]+row_offset, self.player_pos[1]+col_offset
-        if self.maze[new_x][new_y] != 1 and [new_x, new_y] != self.lock_pos: #cant go on wall and lock areas
-            self.player_old_pos = self.player_pos[:] #shallow copy of list, separate object in memory
-            self.player_pos = [new_x, new_y]
-            if self.maze[new_x][new_y] == 2: #check for coin
-                self.player_score += 10
-                self.maze[new_x][new_y] = 0 #remove coin from board basically
-                self.coin_sound.play()
-                print(f'score: {self.player_score}')
+    # def move_player(self, row_offset, col_offset):
+    #     new_x, new_y = self.player_pos[0]+row_offset, self.player_pos[1]+col_offset
+    #     if self.maze[new_x][new_y] != 1 and [new_x, new_y] != self.lock_pos: #cant go on wall and lock areas
+    #         self.player_old_pos = self.player_pos[:] #shallow copy of list, separate object in memory
+    #         self.player_pos = [new_x, new_y]
+    #         if self.maze[new_x][new_y] == 2: #check for coin
+    #             self.player_score += 10
+    #             self.maze[new_x][new_y] = 0 #remove coin from board basically
+    #             self.coin_sound.play()
+    #             print(f'score: {self.player_score}')
 
     def move_silly(self, row_offset, col_offset):
         new_x, new_y = self.silly_pos[0]+row_offset, self.silly_pos[1]+col_offset
         if self.maze[new_x][new_y] != 1 and [new_x, new_y] != self.lock_pos:
             self.silly_pos = [new_x, new_y]
-        
-    #-------------------------------- simulated annealing --------------------------------
+
+    def move_player(self, row_offset, col_offset):
+        new_x, new_y = self.player_pos[0] + row_offset, self.player_pos[1] + col_offset
+        if self.maze[new_x][new_y] != 1 and [new_x, new_y] != self.lock_pos:
+            self.player_old_pos = self.player_pos[:]
+            self.player_pos = [new_x, new_y]
+            self.player_target_pos = [new_x, new_y]
+            self.player_moved=True
+            if self.maze[new_x][new_y] == 2:
+                self.player_score += 10
+                self.maze[new_x][new_y] = 0
+                self.coin_sound.play()
+
+    # def move_silly(self, row_offset, col_offset):
+    #     new_x, new_y = self.silly_pos[0] + row_offset, self.silly_pos[1] + col_offset
+    #     if self.maze[new_x][new_y] != 1 and [new_x, new_y] != self.lock_pos:
+    #         self.silly_old_pos = self.silly_pos[:]
+    #         self.silly_pos = [new_x, new_y]
+    #         self.silly_target_pos = [new_x, new_y]
+    #         self.silly_animation_progress = 0.0
+
+   #-------------------------------- simulated annealing --------------------------------
     def calculate_distance(self, pos1, pos2):
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
     
+    #NNNNN
     def get_random_neighbor(self, current_pos):
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  
         random.shuffle(directions) #generate koi bhi up down left right random movement for silly
@@ -265,62 +331,131 @@ class MazeGame:
         for direction in directions:
             neighbor = [current_pos[0] + direction[0], current_pos[1] + direction[1]]
             if 0 <= neighbor[0] < len(self.maze) and 0 <= neighbor[1] < len(self.maze[0]):
-                 # here i added check k do not overlap silly position with player cz simmulated annealing do be OVERPERFRMING
-                #if self.maze[neighbor[0]][neighbor[1]] != 1 and neighbor != self.player_pos: 
-                if self.maze[neighbor[0]][neighbor[1]] != 1 :
+                 # here i added check k do not overlap silly position with player cz simmulated annealing do be OVERPERFORMING
+                #if self.maze[neighbor[0]][neighbor[1]] != 1 and neighbor != self.player_pos:
+                # #the current pos is silly position 
+                # self is lupin 
+                if self.maze[neighbor[0]][neighbor[1]] != 1 and (self.lock_pos is None or not self.is_one_step_away((neighbor[0], neighbor[1]), self.lock_pos)):
                    # print(neighbor)
                     possible_positions.append(neighbor)
         return random.choice(possible_positions) if possible_positions else None
-
-
-    def step_simulated_annealing(self):
+#NNNNN
+    def is_one_step_away(self, pos, lock_pos): #lock is one step away from playa
+        if lock_pos is None:
+            return False
+        x_diff = abs(pos[0] - lock_pos[0])
+        y_diff = abs(pos[1] - lock_pos[1])
+        print("lock pos"+str(lock_pos))
+        print("silly pos" +str(pos))
+        
+    # One step away means either x_diff is 1 and y_diff is 0, or y_diff is 1 and x_diff is 0
+        if (x_diff == 1 and y_diff == 0) or (y_diff == 1 and x_diff == 0):
+            print("lock one step away detected ")
+            return True
+        else:
+            return False
+#NNNNN
+    def handle_input_silly_level1_simulated_annealing(self):
         if self.temperature <= self.temperature_min:
-            return  # Exit if the temperature has cooled down enough
-
+            return  
+        print("self.temperature"+str(self.temperature))
         current_pos = self.silly_pos
         current_cost = self.calculate_distance(current_pos, self.player_pos)
 
         neighbor = self.get_random_neighbor(current_pos)
         if neighbor is None:
-            return  # Skip if no valid moves
+            return  
 
         neighbor_cost = self.calculate_distance(neighbor, self.player_pos)
         if neighbor_cost < current_cost:
-            self.silly_pos = neighbor  # Move to better position
+            self.silly_pos = neighbor  
         else:
             change_in_energy = neighbor_cost - current_cost
             if math.exp(-change_in_energy / self.temperature) > random.random():
-                self.silly_pos = neighbor  # Move to worse position probabilistically
+                self.silly_pos = neighbor  
 
-        self.temperature *= self.cooling_factor  # Cool down
+        self.temperature *= self.cooling_factor  
+        #NNNNN
+    #------------------------Astar+CSP-----------------------------------------------------------
 
+    def a_star_search(self, start, goal):
+        frontier = []
+        heapq.heappush(frontier, (0, start))
+        came_from = {start: None}
+        cost_so_far = {start: 0}
+        while frontier:
+            current = heapq.heappop(frontier)[1]
 
-    def handle_input_silly_level1_simulated_annealing(self):
-        
-        current_pos = self.silly_pos
-        print("current silly pos "+str(current_pos))
-        current_cost = self.calculate_distance(current_pos, self.player_pos)
-        print("current silly pos "+str(current_cost))
-        temperature = 1.0
-        temperature_min = 0.01
-        cooling_factor = 0.99
+            if current == goal:
+                break
 
-        while temperature > temperature_min:
-            neighbor = self.get_random_neighbor(current_pos)
-            if neighbor is None:
-                continue
-            neighbor_cost = self.calculate_distance(neighbor, self.player_pos)
+            for next in self.get_neighbors(current):
+                if self.is_blocked(next):
+                    continue
+                new_cost = cost_so_far[current] + 1
+                if next not in cost_so_far or new_cost < cost_so_far[next]:
+                    cost_so_far[next] = new_cost
+                    priority = new_cost + self.heuristic(goal, next)
+                    heapq.heappush(frontier, (priority, next))
+                    came_from[next] = current
 
-            if neighbor_cost < current_cost:
-                current_pos = neighbor
-                current_cost = neighbor_cost
+        return self.reconstruct_path(came_from, start, goal)
+
+    def heuristic(self, a, b):
+        (x1, y1), (x2, y2) = a, b
+        return abs(x1 - x2) + abs(y1 - y2)
+
+    def get_neighbors(self, pos):
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        neighbors = []
+        for dx, dy in directions:
+            nx, ny = pos[0] + dx, pos[1] + dy
+            if 0 <= nx < len(self.maze) and 0 <= ny < len(self.maze[0]) and not self.is_blocked((nx, ny)):
+                neighbors.append((nx, ny))
+        return neighbors
+
+    def is_blocked(self, pos):
+        x, y = pos
+        #if self.maze[x][y] == 1 or (self.lock_pos is not None and self.is_one_step_away(pos, self.lock_pos)):
+        if self.maze[x][y] == 1 :
+            return True
+            #print("walls or lock heyyyy")
+        #if self.maze[x][y] == 1 :
+        if self.lock_pos is not None and tuple(pos) == tuple(self.lock_pos):
+            return True
+        return False
+
+    # def reconstruct_path(self, came_from, start, goal):
+    #     current = goal
+    #     path = []
+    #     while current != start:
+    #         path.append(current)
+    #         current = came_from[current]
+    #     path.reverse() #cz bactracking hum ney goal sey sillly tak ki hey
+    #     #we need path from silly to goal
+    #     return path
+    def reconstruct_path(self, came_from, start, goal):
+        current = tuple(goal)
+        path = []
+        while current != tuple(start):
+            if current in came_from:
+                path.append(list(current))  # Convert tuple back to list for consistency in your game
+                current = came_from[current]
             else:
-                change_in_energy = neighbor_cost - current_cost
-                if math.exp(-change_in_energy / temperature) > random.random():
-                    current_pos = neighbor
-                    current_cost = neighbor_cost
+                # Handle the case where the path is incomplete or the goal/start is blocked
+                print(f"Path reconstruction failed: {current} not reachable from {start}")
+                return []  # Return an empty path or handle as needed
+        path.reverse()
+        return path
 
-            temperature *= cooling_factor
-        
-        self.silly_pos = current_pos
-    #-------------------------------------------------------------------------------------
+    def move_silly_locks(self, next_pos):
+        if self.is_blocked(next_pos):
+            #print(f"Blocked: Cannot move to {next_pos}")
+            return False
+        #if self.is_one_step_away(next_pos,self.lock_pos):
+            #print(f"Blocked die to lock placed : Cannot move to {next_pos}")
+         #   return False
+        else:
+            self.silly_pos = list(next_pos)
+            #print(f"Moving Silly to {self.silly_pos}")
+            return True
