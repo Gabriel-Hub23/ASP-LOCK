@@ -7,7 +7,8 @@ import time
 import random
 import math
 import heapq
-
+#LLLLL
+import copy 
 class Game():
     def __init__(self):
         pygame.init()
@@ -91,7 +92,15 @@ class Game():
                         print("New path after blockage:", maze_game.path)
                         if maze_game.path:
                             next_pos = maze_game.path.pop(0)
+             
                             maze_game.move_silly_locks(next_pos)
+            #LLLL
+            if maze_game.level == 3:
+                print("i am in level 3")
+                move, score = maze_game.best_move(3, True)  #the first value passed here is the depth to which we explore game tree 3 is optimal i think though a bit laggy :(
+                if move:
+                    maze_game.silly_pos = move
+                    print(f"best move {move} found with score {score}")
                 
 
 
@@ -213,6 +222,10 @@ class MazeGame:
         self.player_moved = False
         self.obstacle_changed = False
 
+        #LLLL
+        #--------------minimax-------------------
+        self.move_history = []
+    
     def draw_maze(self):
         if self.lives == 3:
             self.game.display.blit(self.maze_image3, (0, 0))
@@ -276,7 +289,7 @@ class MazeGame:
     
     def update_lock(self):
         #NNNNN
-        if self.lock_pos and time.time() - self.lock_timer >=8 : #5 seconds passed nabs changes it to 15 seconds 
+        if self.lock_pos and time.time() - self.lock_timer >=25 : #5 seconds passed nabs changes it to 15 seconds 
             self.lock_pos = None
             self.obstacle_changed=False
             print(f"lock removed from: {self.lock_pos}")
@@ -458,4 +471,116 @@ class MazeGame:
             self.silly_pos = list(next_pos)
             #print(f"Moving Silly to {self.silly_pos}")
             return True
+#------------------------MINIMAX ALGORITHM +ALPHA BETA PRUNING (DEPTH LIMITED-----------------
+    def evaluate_position(self): #evaluation function , returns basically a score how good a move is 
+        if self.player_pos == self.silly_pos: #a v v v large amazing value if it leads to catching lupin
+            return float('inf') 
+        else:#find manhattan distance bw lupin and silly
+            distance_to_lupin = abs(self.silly_pos[0] - self.player_pos[0]) + abs(self.silly_pos[1] - self.player_pos[1])
+            # we are also keeping track of coins collected aka the player score towards evaluation 
+            #returning a negative value cz silly is minimizing the distance , and overall maximizing the evaluation score
+            #jinta silly is close to lupin  utna better score 
+            return -distance_to_lupin - (0.5 * self.player_score)
+    
+    def get_all_possible_moves(self):
+        possible_moves = []
+        directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  
+        for direction in directions:
+            new_pos = [self.silly_pos[0] + direction[0], self.silly_pos[1] + direction[1]] 
+            #ake sure that when generating moves hum khyaal rakhen of walls and locks
+            if 0 <= new_pos[0] < len(self.maze) and 0 <= new_pos[1] < len(self.maze[0]) and self.maze[new_pos[0]][new_pos[1]] != 1 and (self.lock_pos is None or tuple(new_pos) != tuple(self.lock_pos)):
+                possible_moves.append(new_pos)
+        return possible_moves 
+    def minimax(self, depth, alpha, beta, is_maximizing):
+        if depth == 0 or self.game_over():
+            return self.evaluate_position()
+        if is_maximizing:#AI tuern aka SILLY turn 
+            max_eval = float('-inf')
+            for move in self.get_all_possible_moves():
+                # we cant simulate moves on roiginal game cz we have not yet decided best move yet
+                #hence creating a clone of current game state , later well restore the game state too
+                new_game = self.clone_state()
+                new_game.silly_pos = move #simulate move on silly
+                #create all counter moves of human is_maximizing=False
+                eval = new_game.minimax(depth - 1, alpha, beta, False)
+                #keep track of best move saath saaath , like update if a behter move found at ebery iteration
+                max_eval = max(max_eval, eval)
+                #alpha picks the larger value move everytime
+                alpha = max(alpha, eval)
+                if beta <= alpha: #pruning condition , iss sey neechey tree explore karney ki zarooorat hi nahi , cz jitna acha score aa chuka iss sey kam hi aaye ga , iss sey zyaada aa hi nahi sakta
+                    print("Pruning game tree chop chop")
+                    break
+            return max_eval
+        else: #is_maximizing=False   ###its Human Player (lupin's) turn
+            min_eval = float('inf')
+            for move in self.get_all_possible_moves():
+                new_game = self.clone_state()
+                new_game.silly_pos = move
+                #human k liye counter AI moves check and pick best move human could make (hehe then later on well counter this human move too in best move function)
+                eval = new_game.minimax(depth - 1, alpha, beta, True) #True for AI move 
+                min_eval = min(min_eval, eval)
+                #beta always picks the lower value side
+                beta = min(beta, eval)
+                if alpha >= beta:
+                    print("Pruning game tree in minimizing chop chop")
+                    break
+            return min_eval
+   
+    def best_move(self, depth, is_maximizing):
+        alpha= float('-inf') #next alpha(max value) iss sey to kam hi ho ga
+        beta= float('inf') #next beta (min vlaue) iss sey to zyaada hi ho gi 
+        best_score = float('-inf') if is_maximizing else float('inf')
+        best_move = None
+ #aik dafa run is_maximizing code yahan bhi , this actually like initiates the gae tree ka root , yahan sey neechey game tree generate hota hey
+        for move in self.get_all_possible_moves():
+            cloned_game = self.clone_state()
+            cloned_game.silly_pos = move
+            score = cloned_game.minimax(depth - 1, alpha, beta, not is_maximizing)
+            #agar this move is already in the move history 
+            #penalize it by reducing its score -1 so that baar baar same move na li jaaye
+            #this solves the oscillation problem  silly moving back and forth in maze cz of similar scores
+            if move in self.move_history[-3:]:  #last 3 moves look at 
+                score -= 1  
 
+            if is_maximizing and score > best_score:
+                #keeping yrack of and updating the best score and best move all same as we did in tic tac toe too
+                best_score = score
+                best_move = move
+                alpha = max(alpha, best_score)
+                print(f"updating  best move found: {best_move} with score {best_score}")
+            elif not is_maximizing and score < best_score:
+                best_score = score
+                best_move = move
+                beta = min(beta, best_score)
+            if alpha >= beta:
+                print("pruning at best move function")
+                break
+
+        self.move_history.append(best_move) #update the move_hisotry too na
+        if len(self.move_history) > 10:  #pop form head if its getting larger than a certain mempory limit ie 10
+            self.move_history.pop(0)
+        return best_move, best_score
+    def game_over(self):#winning/losing conditions
+        return self.lives <= 0 or self.player_pos == self.silly_pos #or self.player_score>=1480
+    def clone_state(self):
+        #could not use deep copy function of copy library cz it was not copying surfaces and stuff of pygame library
+        cloned_game = MazeGame(self.game, self.level)  
+        #create copy for only those relevant attributes we could need
+        cloned_game.maze = [row[:] for row in self.maze]  
+        cloned_game.cell_size = self.cell_size
+
+        cloned_game.lives = self.lives
+        cloned_game.player_pos = self.player_pos[:]
+        cloned_game.player_old_pos = self.player_old_pos[:]
+        cloned_game.player_score = self.player_score
+
+        cloned_game.silly_pos = self.silly_pos[:]
+        
+        cloned_game.lock_pos = None if self.lock_pos is None else self.lock_pos[:]
+        cloned_game.lock_timer = self.lock_timer
+
+        
+        return cloned_game
+
+
+    
