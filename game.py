@@ -455,7 +455,7 @@ class MazeGame:
             #returning a negative value cz silly is minimizing the distance , and overall maximizing the evaluation score
             #jinta silly is close to lupin  utna better score 
             return -distance_to_lupin - (0.5 * self.player_score)
-    
+        
     def get_all_possible_moves(self):
         possible_moves = []
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  
@@ -465,6 +465,7 @@ class MazeGame:
             if 0 <= new_pos[0] < len(self.maze) and 0 <= new_pos[1] < len(self.maze[0]) and self.maze[new_pos[0]][new_pos[1]] != 1 and (self.lock_pos is None or tuple(new_pos) != tuple(self.lock_pos)):
                 possible_moves.append(new_pos)
         return possible_moves 
+    
     def minimax(self, depth, alpha, beta, is_maximizing):
         if depth == 0 or self.game_over():
             return self.evaluate_position()
@@ -534,8 +535,10 @@ class MazeGame:
         if len(self.move_history) > 10:  #pop form head if its getting larger than a certain mempory limit ie 10
             self.move_history.pop(0)
         return best_move, best_score
+    
     def game_over(self):#winning/losing conditions
         return self.lives <= 0 or self.player_pos == self.silly_pos #or self.player_score>=1480
+    
     def clone_state(self):
         #could not use deep copy function of copy library cz it was not copying surfaces and stuff of pygame library
         cloned_game = MazeGame(self.game, self.level)  
