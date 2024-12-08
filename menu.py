@@ -6,7 +6,7 @@ class Menu():
         self.mid_w, self.mid_h, = self.game.DISPLAY_W/2, self.game.DISPLAY_H/2
         self.run_display = True
         self.cursor_rect = pygame.Rect(0, 0, 20, 20) #rectangle because we're using the arrow key
-        self.offset = 150 #so it's on the left of our text --change----------------------------------------------------------------------
+        self.offset = 150 #so it's on the left of our text
     
     def draw_cursor(self):
         self.game.draw_text('*', 25, self.cursor_rect.x+80, self.cursor_rect.y)
@@ -32,7 +32,7 @@ class MainMenu(Menu): #inherited Menu class
         while self.run_display:
             self.game.check_events() #sets all the flags for the logic of cursor movement
             self.check_input()
-            self.game.display.fill(self.game.BLACK)
+            self.game.display.fill(self.game.screen_colour)
             self.game.display.blit(self.background_image, (0, 0))
             self.game.draw_text("Play", 35, self.startx, self.starty)
             self.game.draw_text("Rules", 35, self.rulesx, self.rulesy)
@@ -87,7 +87,7 @@ class RulesMenu(Menu): #inherited Menu class
             if self.game.START_KEY:
                 self.game.curr_menu = self.game.main_menu
                 self.run_display = False
-            self.game.display.fill(self.game.BLACK) #green is 203, 245, 203
+            self.game.display.fill(self.game.screen_colour)
             self.game.display.blit(self.rules_image, (0, 0))
             self.blit_screen() #sets all flags back to false and displays screen
 
@@ -104,7 +104,7 @@ class CreditsMenu(Menu): #inherited Menu class
             if self.game.START_KEY or self.game.BACK_KEY: #way to send them back to the main menu
                 self.game.curr_menu = self.game.main_menu
                 self.run_display = False
-            self.game.display.fill(self.game.BLACK) #green is 203, 245, 203
+            self.game.display.fill(self.game.screen_colour)
             self.game.display.blit(self.credits_image, (0, 0))
             self.blit_screen() #sets all flags back to false and displays screen
 
@@ -124,7 +124,7 @@ class LevelMenu(Menu): #inherited Menu class
         while self.run_display:
             self.game.check_events()
             self.check_input()
-            self.game.display.fill(self.game.BLACK)
+            self.game.display.fill(self.game.screen_colour)
             self.game.display.blit(self.selectlvl_image, (0, 0))
             #self.game.draw_text("Select Level", 35, self.mid_w, self.mid_h - 100)
             self.game.draw_text("Level 1", 30, self.level1x, self.level1y)
@@ -184,7 +184,7 @@ class GameOverMenu(Menu):
             if self.game.START_KEY:
                 self.game.curr_menu = self.game.main_menu
                 self.run_display = False
-            self.game.display.fill(self.game.BLACK) #green is 203, 245, 203
+            self.game.display.fill(self.game.screen_colour)
             self.game.display.blit(self.gameover_image, (0, 0))
             self.blit_screen() #sets all flags back to false and displays screen
 
@@ -201,6 +201,6 @@ class GameWonMenu(Menu):
             if self.game.START_KEY:
                 self.game.curr_menu = self.game.main_menu
                 self.run_display = False
-            self.game.display.fill(self.game.BLACK) #green is 203, 245, 203
+            self.game.display.fill(self.game.screen_colour)
             self.game.display.blit(self.gamewon_image, (0, 0))
             self.blit_screen() #sets all flags back to false and displays screen
