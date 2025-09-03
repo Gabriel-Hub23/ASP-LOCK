@@ -270,7 +270,13 @@ class MazeGame:
 
     def move_silly_with_asp(self):
         dyn = self._asp_dynamic_facts()
-        nxt = self.asp.decide_move(dyn)
+       
+        sx, sy = self.silly_pos[0], self.silly_pos[1]
+        px, py = self.player_pos[0], self.player_pos[1]
+        locks = getattr(self, "lock_cells", []) or getattr(self, "current_locks", [])
+        nxt = self.asp.decide_move((sx, sy), (px, py), locks)
+
+
         self.tick += 1
         if nxt is None:
             print("NO_MOVE_FROM_SOLVER")
