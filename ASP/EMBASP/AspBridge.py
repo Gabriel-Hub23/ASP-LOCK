@@ -1,112 +1,87 @@
 # ASP/EMBASP/AspBridge.py
-# Bridge minimale tra il tuo gioco e DLV2/IDLV via EmbASP.
-# - set_static(maze): carica encoding + fatti statici (rows/cols/wall)
-# - decide_move(dynamic_facts): aggiunge i fatti dinamici (posizioni, lock, ecc.),
+# Bridge sincrono e robusto tra il gioco e DLV2/IDLV via EmbASP.
+# - set_static(rows, cols, walls): prepara encoding + fatti statici (cell/wall)
+# - decide_move((sx,sy), (px,py), locks): aggiunge i fatti dinamici (posizioni/lock),
 #   invoca il solver e ritorna (nx, ny) se trova "move(X,Y).", altrimenti None.
 
 from embasp.platforms.desktop.desktop_handler import DesktopHandler
 from embasp.languages.asp.asp_input_program import ASPInputProgram
 from embasp.specializations.dlv2.desktop.dlv2_desktop_service import DLV2DesktopService
-# Se usi un wrapper diverso per i-dlv, sostituisci l'import sopra con quello del tuo servizio.
+# Per iDLV usa: from embasp.specializations.idlv.desktop.idlv_desktop_service import IDLVDesktopService
 
+from typing import Optional, Tuple, Iterable
 import os
-from typing import Optional, Tuple
-
 
 class AspBridge:
-    def __init__(self, dlv2_path: str, encoding_path: str):
-        """
-        :param dlv2_path: percorso all'eseguibile del solver (es. ASP/DLV/dlv2.exe)
-        :param encoding_path: percorso al file .asp (es. ASP/CODE/aiGabriel.asp)
-        """
-        if not os.path.isfile(dlv2_path):
-            raise FileNotFoundError(f"DLV2 non trovato: {dlv2_path}")
-        if not os.path.isfile(encoding_path):
+    def __init__(self, solver_path: str, encoding_path: str, debug: bool = False):
+        if not os.path.exists(solver_path):
+            raise FileNotFoundError(f"Solver non trovato: {solver_path}")
+        if not os.path.exists(encoding_path):
             raise FileNotFoundError(f"Encoding ASP non trovato: {encoding_path}")
+        self._solver_path = solver_path
+        self._encoding_path = encoding_path
+        self._debug = debug
+        self._handler = DesktopHandler(DLV2DesktopService(solver_path))
+        self._static_prog = ASPInputProgram()
+        self._static_ready = False
 
-        # Inizializza il servizio Desktop per DLV2/IDLV
-        self.service = DLV2DesktopService(dlv2_path)
-        self.encoding_path = encoding_path
+    def log(self, *args):
+        if self._debug:
+            print("[ASP]", *args, flush=True)
 
-        # Programma "statico" (encoding + fatti che non cambiano)
-        self.static_prog: Optional[ASPInputProgram] = None
+    def set_static(self, rows: int, cols: int, walls: Iterable[Tuple[int,int]]):
+        # Prepara i fatti statici (griglia e muri) e carica l'encoding
+        self._static_prog = ASPInputProgram()
+        # Encoding
+        self._static_prog.add_files_path(self._encoding_path)
+        # Celle
+        for x in range(cols):
+            for y in range(rows):
+                self._static_prog.add_program(f"cell({x},{y}).")
+        # Muri
+        for (wx, wy) in set(walls):
+            self._static_prog.add_program(f"wall({wx},{wy}).")
 
-    # ---------------------------------------------------------------------
-    # Sezione STATIC: encoding + mappa (rows/cols/wall)
-    # ---------------------------------------------------------------------
-    def set_static(self, maze):
-        rows, cols = len(maze), len(maze[0])
+        self._static_ready = True
+        self.log("Static facts ready.")
 
-        prog = ASPInputProgram()
-        prog.add_files_path(self.encoding_path)
+    def decide_move(self, pos_silly: Tuple[int,int], pos_player: Tuple[int,int], locks: Iterable[Tuple[int,int]] = ()):
+        # Aggiunge i fatti dinamici e interroga il solver. Ritorna (nx,ny) o None.
+        if not self._static_ready:
+            raise RuntimeError("Chiama set_static(...) prima di decide_move(...)")
 
-        facts = []
-        # opzionale, ma utile se ti serve in ASP
-        facts.append(f"rows({rows}).")
-        facts.append(f"cols({cols}).")
-
-        # bound sicuro per la BFS: al massimo rows*cols-1 passi
-        maxd = rows * cols - 1
-        facts.append(f"maxd({maxd}).")
-
-        for x in range(rows):
-            for y in range(cols):
-                facts.append(f"cell({x},{y}).")          # dominio esplicito
-                if maze[x][y] == 1:
-                    facts.append(f"wall({x},{y}).")
-
-        prog.add_program("\n".join(facts))
-        self.static_prog = prog
-
-    # ---------------------------------------------------------------------
-    # Chiamata sincrona al solver con i fatti dinamici (posizioni, lock, ecc.)
-    # ---------------------------------------------------------------------
-    def decide_move(self, dynamic_facts: str) -> Optional[Tuple[int, int]]:
-        """
-        Esegue una chiamata al solver aggiungendo i fatti dinamici correnti.
-        :param dynamic_facts: stringa con fatti tipo:
-            pos_silly(SX,SY).
-            pos_player(PX,PY).
-            lock(LX,LY).           (se presente)
-            pos_silly_prev(PSX,PSY). (opzionale, se vuoi anti-rimbalzo)
-            ...
-        :return: (nx, ny) se trova un atomo move(X,Y)., altrimenti None
-        """
-        if self.static_prog is None:
-            raise RuntimeError("Chiama set_static(maze) prima di decide_move().")
-
-        handler = DesktopHandler(self.service)
-        # Riusa i fatti statici (encoding + walls + rows/cols)
-        handler.add_program(self.static_prog)
-
-        # Aggiungi i fatti dinamici
         dyn = ASPInputProgram()
-        if dynamic_facts:
-            dyn.add_program(dynamic_facts)
-        handler.add_program(dyn)
+        sx, sy = pos_silly
+        px, py = pos_player
+        dyn.add_program(f"pos_silly({sx},{sy}).")
+        dyn.add_program(f"pos_player({px},{py}).")
+        for (lx, ly) in set(locks or []):
+            dyn.add_program(f"lock({lx},{ly}).")
 
-        # Avvio sincrono
-        out = handler.start_sync()
+        self._handler.add_programs(self._static_prog)
+        self._handler.add_programs(dyn)
 
-        # DEBUG utile: stampa output grezzo del solver
         try:
-            print("RAW OUTPUT:", out.get_output())
-        except Exception:
-            pass
+            out = self._handler.start_sync()
+        finally:
+            # Importantissimo: pulire il handler per la prossima chiamata
+            self._handler.remove_all()
 
-        # Parsing semplice: cerca una singola mossa "move(X,Y)"
+        # Parsing answer sets
         try:
             for answer_set in out.get_answer_sets():
                 for atom in answer_set.get_atoms():
-                    # atom è tipicamente una stringa tipo "move(3,4)"
-                    if atom.startswith("move(") and atom.endswith(")"):
-                        inside = atom[5:-1]
-                        nx_str, ny_str = inside.split(",")
-                        nx = int(nx_str.strip())
-                        ny = int(ny_str.strip())
-                        return nx, ny
-        except Exception:
-            # se fallisce il parsing, ritorniamo None
-            pass
+                    s = str(atom)  # atomi come stringhe tipo "move(3,4)"
+                    if s.startswith("move(") and s.endswith(")"):
+                        inside = s[5:-1]
+                        parts = inside.split(",")
+                        if len(parts) == 2:
+                            nx = int(parts[0].strip())
+                            ny = int(parts[1].strip())
+                            self.log(f"MOVE({nx},{ny})")
+                            return (nx, ny)
+        except Exception as e:
+            self.log("Errore parsing answer sets:", e)
 
+        self.log("Nessuna mossa trovata.")
         return None
