@@ -40,17 +40,22 @@ class AspBridge:
         prog = ASPInputProgram()
         prog.add_files_path(self.encoding_path)
 
-        # (opzionale) tieni comunque rows/cols se ti servono per altro
-        prog.add_program(f"rows({rows}). cols({cols}).")
-
         facts = []
+        # opzionale, ma utile se ti serve in ASP
+        facts.append(f"rows({rows}).")
+        facts.append(f"cols({cols}).")
+
+        # bound sicuro per la BFS: al massimo rows*cols-1 passi
+        maxd = rows * cols - 1
+        facts.append(f"maxd({maxd}).")
+
         for x in range(rows):
             for y in range(cols):
-                facts.append(f"cell({x},{y}).")        # <--- DOMINIO SICURO
-                if maze[x][y] == 1:                    # 1 = muro
+                facts.append(f"cell({x},{y}).")          # dominio esplicito
+                if maze[x][y] == 1:
                     facts.append(f"wall({x},{y}).")
-        prog.add_program("\n".join(facts))
 
+        prog.add_program("\n".join(facts))
         self.static_prog = prog
 
     # ---------------------------------------------------------------------
