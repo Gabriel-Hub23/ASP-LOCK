@@ -1,94 +1,69 @@
-% =========================================================
-% Lock'n'Chase – Enemy Move (IDLV/DLV2)
-% Obiettivo: scegliere la mossa che minimizza il # di passi
-% (shortest-path) fino al player, evitando muri/lock,
-% penalizzando vicoli ciechi e rimbalzi.
-% Output: move(X,Y).
-% =========================================================
-
 % ---------- Bounds & celle libere ----------
 in_bounds(X,Y) :- rows(R), cols(C), X>=0, Y>=0, X<R, Y<C.
 free(X,Y)      :- in_bounds(X,Y), not wall(X,Y), not lock(X,Y).
 
-% ---------- Posizioni corrente ----------
-pos_silly(SX,SY).
-pos_player(PX,PY).
+% ---------- Posizioni corrente (arrivano dal gioco) ----------
+% pos_silly(SX,SY).
+% pos_player(PX,PY).
+% (opzionale) pos_silly_prev(PSX,PSY).
 
-% ---------- Candidati: le 4 adiacenti libere ----------
-adj(X,Y,X+1,Y) :- free(X,Y), free(X+1,Y).
-adj(X,Y,X-1,Y) :- free(X,Y), free(X-1,Y).
-adj(X,Y,X,Y+1) :- free(X,Y), free(X,Y+1).
-adj(X,Y,X,Y-1) :- free(X,Y), free(X,Y-1).
+% ---------- Adiacenze e candidati ----------
+adj(X,Y,X1,Y) :- free(X,Y), X1 = X+1, free(X1,Y).
+adj(X,Y,X1,Y) :- free(X,Y), X1 = X-1, free(X1,Y).
+adj(X,Y,X,Y1) :- free(X,Y), Y1 = Y+1, free(X,Y1).
+adj(X,Y,X,Y1) :- free(X,Y), Y1 = Y-1, free(X,Y1).
 
 cand(NX,NY) :- pos_silly(SX,SY), adj(SX,SY,NX,NY).
 
-% ---------- Unica mossa scelta tra i candidati ----------
-{ move(NX,NY) : cand(NX,NY) } = 1.
-
-% =========================================================
-%  Calcolo distanza di cammino (shortest path) dal PLAYER
-% =========================================================
-
-% Propagazione BFS a livelli su grafo delle celle libere.
-% Distanza 0 al player:
+% ---------- Distanza di cammino (BFS dal player) ----------
 dist(PX,PY,0) :- pos_player(PX,PY), free(PX,PY).
-
-% Espansione: se (X,Y) ha distanza D, ogni vicino libero ha distanza D+1,
-% scegliendo la MINIMA distanza con vincoli di ottimalità:
 dist(X2,Y2,D+1) :- dist(X1,Y1,D), adj(X1,Y1,X2,Y2), free(X2,Y2), D>=0.
 
-% Teniamo solo la distanza minima per ogni cella:
-% (classico trucco: se una cella ha due distanze diverse, eliminiamo quella maggiore)
-:~ dist(X,Y,D1), dist(X,Y,D2), D1<D2. [1@100, X,Y,D2]
+% Distanza minima su cella
+mindist(X,Y,MD) :- MD = #min { D : dist(X,Y,D) }, free(X,Y).
+hasdist(X,Y) :- mindist(X,Y,_).
 
-% Distanza del candidato scelto:
-chosen_dist(D) :- move(X,Y), dist(X,Y,D).
-
-% =========================================================
-%  Heuristics & penalità
-% =========================================================
-
-% 1) Minimizza la distanza di cammino vera verso il player (peso alto).
-:~ chosen_dist(D). [D@50]
-
-% 2) Evita VICOLI CIECHI (celle con grado=1), per non intrappolarsi.
+% ---------- Grado (per evitare vicoli ciechi) ----------
 deg(X,Y,N) :- free(X,Y), N = #count { X2,Y2 : adj(X,Y,X2,Y2) }.
 deg1(X,Y)  :- deg(X,Y,1).
 
-:~ move(X,Y), deg1(X,Y). [2@5]
+% ---------- Manhattan (fallback se il player è irraggiungibile) ----------
+dx(X,Y,AX) :- pos_player(PX,PY), AX = X - PX.
+dy(X,Y,AY) :- pos_player(PX,PY), AY = Y - PY.
+abs(A,A) :- A>=0.
+abs(A,B) :- A<0, B = -A.
+absdx(X,Y,V) :- dx(X,Y,A), abs(A,V).
+absdy(X,Y,V) :- dy(X,Y,A), abs(A,V).
+manhattan(X,Y,M) :- absdx(X,Y,VX), absdy(X,Y,VY), M = VX + VY.
 
-% 3) Evita l’OSCILLAZIONE indietro (se nota la cella precedente).
-%    Se disponibile pos_silly_prev/2, penalizza tornare subito lì.
-:~ move(X,Y), pos_silly_prev(X,Y). [3@5]
+% ---------- Pesi delle euristiche (tutto in un unico score) ----------
+% Grande priorità alla distanza reale (BFS); se non disponibile, grosso malus + Manhattan.
+dscore(X,Y,S)  :- hasdist(X,Y), mindist(X,Y,D), S = 1000*D.
+dscore(X,Y,S)  :- not hasdist(X,Y), manhattan(X,Y,M), S = 1000000 + 10*M.
 
-% 4) Micro tie-breaker: preferisci celle con grado più alto (più vie d'uscita).
-%    Penalizza gradi bassi (scalata dolce).
-:~ move(X,Y), deg(X,Y,N). [10-N@2]
+% Vicolo cieco = +50; altrimenti +2*(10 - grado)
+p_dead(X,Y,50) :- deg1(X,Y).
+p_dead(X,Y,0)  :- cand(X,Y), not deg1(X,Y).
+p_deg(X,Y,P)   :- deg(X,Y,N), P = 2*(10 - N).
 
-% =========================================================
-%  Fallback su Manhattan (se per qualche motivo il player non è raggiungibile
-%  nella BFS – ad es. blocchi totali). In quel caso minimizziamo |DX|+|DY|.
-% =========================================================
+% Evita rimbalzo: se torni subito nella cella precedente = +30
+p_back(X,Y,30) :- pos_silly_prev(X,Y).
+p_back(X,Y,0)  :- cand(X,Y), not pos_silly_prev(X,Y).
 
-% Manhattan del candidato:
-dx(X,Y,AX) :- pos_player(PX,PY), AX = X - PX, move(X,Y).
-dy(X,Y,AY) :- pos_player(PX,PY), AY = Y - PY, move(X,Y).
+% ---------- Score totale del candidato ----------
+score(X,Y,S) :- cand(X,Y),
+                dscore(X,Y,SD),
+                p_dead(X,Y,PD),
+                p_deg(X,Y,PG),
+                p_back(X,Y,PB),
+                S = SD + PD + PG + PB.
 
-% Valore assoluto (due casi):
-abs(A, A) :- A>=0.
-abs(A, B) :- A<0, B = -A.
+% ---------- Selezione deterministica del MIN ----------
+minS(S)    :- S = #min { V : score(X,Y,V) }.
+best(X,Y)  :- score(X,Y,S), minS(S).
 
-absdx(V) :- dx(X,Y,A), abs(A,V).
-absdy(V) :- dy(X,Y,A), abs(A,V).
+minX(X)    :- X = #min { X1 : best(X1,Y1) }.
+minY(Y)    :- best(X,Y), minX(X), Y = #min { Y1 : best(X,Y1) }.
 
-manhattan(M) :- absdx(VX), absdy(VY), M = VX + VY.
-
-% Attiva la penalità Manhattan SOLO se non abbiamo trovato chosen_dist/1.
-no_dist :- not chosen_dist(_).
-
-:~ no_dist, manhattan(M). [M@10]
-
-% =========================================================
-%  Sicurezza: se per assurdo non ci fossero candidati, niente mossa.
-% =========================================================
-% (In pratica il choice sopra non si attiva e non si produce move/2)
+% ---------- Mossa scelta (UNICA, senza choice-rule) ----------
+move(X,Y) :- best(X,Y), minX(X), minY(Y).
