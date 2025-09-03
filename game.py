@@ -137,7 +137,12 @@ class MazeGame:
         ]
 
         self.asp = AspBridge(DLV2_PATH, ENCODING_PATH)
-        self.asp.set_static(self.maze)
+        # prima di chiamare set_static
+        rows = len(self.maze)
+        cols = len(self.maze[0]) if rows else 0
+        walls = [(x, y) for x, row in enumerate(self.maze) for y, v in enumerate(row) if v == 1]
+
+        self.asp.set_static(rows, cols, walls)
         self.tick = 0
 
         self.cell_size = 36
@@ -211,28 +216,17 @@ class MazeGame:
         # --------- minimax + alpha beta pruning ----------
         self.move_history = []
         
-    def _asp_dynamic_facts(self) -> str:
-        facts = []
-        facts.append(f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).")
-        facts.append(f"pos_player({self.player_pos[0]},{self.player_pos[1]}).")
-        if self.lock_pos is not None:
-            facts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
-        # opzionale ma utile:
-        if hasattr(self, "last_silly_pos") and self.last_silly_pos is not None:
-            facts.append(f"pos_silly_prev({self.last_silly_pos[0]},{self.last_silly_pos[1]}).")
-        
-        return "\n".join(facts)
 
         
     def _asp_dynamic_facts(self) -> str:
-    # SOLO ciò che serve all'encoding
         parts = [
             f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).",
             f"pos_player({self.player_pos[0]},{self.player_pos[1]}).",
         ]
-        if getattr(self, "lock_pos", None) is not None:
+        if self.lock_pos is not None:
             parts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
         return "\n".join(parts)
+
 
 
 
