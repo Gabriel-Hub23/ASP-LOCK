@@ -34,30 +34,22 @@ class AspBridge:
     # ---------------------------------------------------------------------
     # Sezione STATIC: encoding + mappa (rows/cols/wall)
     # ---------------------------------------------------------------------
-    def set_static(self, maze) -> None:
-        """
-        Prepara i fatti statici:
-        - rows(R). cols(C).
-        - wall(X,Y). per ogni cella con muro (valore == 1)
-        Aggiunge anche il file di encoding ASP (self.encoding_path).
-        """
+    def set_static(self, maze):
         rows, cols = len(maze), len(maze[0])
 
         prog = ASPInputProgram()
-        # Carica il file di encoding ASP
         prog.add_files_path(self.encoding_path)
 
-        # Dimensioni
+        # (opzionale) tieni comunque rows/cols se ti servono per altro
         prog.add_program(f"rows({rows}). cols({cols}).")
 
-        # Muri (assumiamo 1 = muro nella tua matrice)
-        wall_facts = []
+        facts = []
         for x in range(rows):
             for y in range(cols):
-                if maze[x][y] == 1:
-                    wall_facts.append(f"wall({x},{y}).")
-        if wall_facts:
-            prog.add_program("\n".join(wall_facts))
+                facts.append(f"cell({x},{y}).")        # <--- DOMINIO SICURO
+                if maze[x][y] == 1:                    # 1 = muro
+                    facts.append(f"wall({x},{y}).")
+        prog.add_program("\n".join(facts))
 
         self.static_prog = prog
 
