@@ -14,7 +14,7 @@ class Game():
         self.DISPLAY_W, self.DISPLAY_H = 1280, 720
         self.display = pygame.Surface((self.DISPLAY_W, self.DISPLAY_H))
         self.window = pygame.display.set_mode(((self.DISPLAY_W, self.DISPLAY_H)))
-        self.font_name = "D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\NTBrickSans.ttf"
+        self.font_name = "stuff/NTBrickSans.ttf"
         self.screen_colour = (245, 221, 203)
         self.main_menu = MainMenu(self)
         self.rules = RulesMenu(self)
@@ -25,7 +25,7 @@ class Game():
         
         self.clock = pygame.time.Clock()
 
-        pygame.mixer.music.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lock_n_chase_ost_stage1-1.mp3") #add mp3 file
+        pygame.mixer.music.load("stuff/lock_n_chase_ost_stage1-1.mp3") #add mp3 file
         pygame.mixer.music.set_volume(0.1)
         pygame.mixer.music.play(loops=-1) #-1 means run indefinitely
 
@@ -150,24 +150,24 @@ class MazeGame:
         self.player_pos = [15, 1]
         self.player_old_pos = [15, 2]
         self.player_score = 0
-        self.player_image = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lupin_colour-Photoroom.png")
+        self.player_image = pygame.image.load("stuff/lupin_colour-Photoroom.png")
         self.player_image = pygame.transform.scale(self.player_image, (self.cell_size, self.cell_size))
 
         self.silly_pos = [1, 1]
-        self.silly_image = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\silly_colour.png")
+        self.silly_image = pygame.image.load("stuff/silly_colour.png")
         self.silly_image = pygame.transform.scale(self.silly_image, (self.cell_size, self.cell_size))
 
-        self.coin_image = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\coin_colour.png")
+        self.coin_image = pygame.image.load("stuff/coin_colour.png")
         self.coin_image = pygame.transform.scale(self.coin_image, (self.cell_size, self.cell_size))
-        self.coin_sound = pygame.mixer.Sound("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\coin_sound_effect.mp3")
+        self.coin_sound = pygame.mixer.Sound("stuff/coin_sound_effect.mp3")
         self.coin_sound.set_volume(0.5)
 
-        self.life_lost_sound = pygame.mixer.Sound("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\life_lost_sound.wav")
+        self.life_lost_sound = pygame.mixer.Sound("stuff/life_lost_sound.wav")
         self.life_lost_sound.set_volume(0.7)
 
-        self.gamewon_sfx =  pygame.mixer.Sound("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\game_won_sfx.wav")
+        self.gamewon_sfx =  pygame.mixer.Sound("stuff/game_won_sfx.wav")
         self.life_lost_sound.set_volume(0.3)
-        self.gameover_sfx = pygame.mixer.Sound("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\game_over_sfx.wav")
+        self.gameover_sfx = pygame.mixer.Sound("stuff/game_over_sfx.wav")
         self.life_lost_sound.set_volume(0.3)
 
         #dimensions and offsets of maze (will use these to place in centre)
@@ -177,31 +177,31 @@ class MazeGame:
         self.y_offset = (self.game.DISPLAY_H - self.maze_height) // 2
 
         #lvl 1:
-        self.maze_image3_lvl1 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv1_3lives.png")
+        self.maze_image3_lvl1 = pygame.image.load("stuff/lv1_3lives.png")
         self.maze_image3_lvl1 = pygame.transform.scale(self.maze_image3_lvl1, (self.game.DISPLAY_W, self.game.DISPLAY_H))
-        self.maze_image2_lvl1 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv1_2lives.png")
+        self.maze_image2_lvl1 = pygame.image.load("stuff/lv1_2lives.png")
         self.maze_image2_lvl1 = pygame.transform.scale(self.maze_image2_lvl1, (self.game.DISPLAY_W, self.game.DISPLAY_H))
-        self.maze_image1_lvl1 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv1_1lives.png")
+        self.maze_image1_lvl1 = pygame.image.load("stuff/lv1_1lives.png")
         self.maze_image1_lvl1 = pygame.transform.scale(self.maze_image1_lvl1, (self.game.DISPLAY_W, self.game.DISPLAY_H))
         #lvl 2:
-        self.maze_image3_lvl2 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv2_3lives.png")
+        self.maze_image3_lvl2 = pygame.image.load("stuff/lv2_3lives.png")
         self.maze_image3_lvl2 = pygame.transform.scale(self.maze_image3_lvl2, (self.game.DISPLAY_W, self.game.DISPLAY_H))
-        self.maze_image2_lvl2 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv2_2lives.png")
+        self.maze_image2_lvl2 = pygame.image.load("stuff/lv2_2lives.png")
         self.maze_image2_lvl2 = pygame.transform.scale(self.maze_image2_lvl2, (self.game.DISPLAY_W, self.game.DISPLAY_H))
-        self.maze_image1_lvl2 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv2_1lives.png")
+        self.maze_image1_lvl2 = pygame.image.load("stuff/lv2_1lives.png")
         self.maze_image1_lvl2 = pygame.transform.scale(self.maze_image1_lvl2, (self.game.DISPLAY_W, self.game.DISPLAY_H))
         #lvl 3:
-        self.maze_image3_lvl3 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv3_3lives.png")
+        self.maze_image3_lvl3 = pygame.image.load("stuff/lv3_3lives.png")
         self.maze_image3_lvl3 = pygame.transform.scale(self.maze_image3_lvl3, (self.game.DISPLAY_W, self.game.DISPLAY_H))
-        self.maze_image2_lvl3 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv3_2lives.png")
+        self.maze_image2_lvl3 = pygame.image.load("stuff/lv3_2lives.png")
         self.maze_image2_lvl3 = pygame.transform.scale(self.maze_image2_lvl3, (self.game.DISPLAY_W, self.game.DISPLAY_H))
-        self.maze_image1_lvl3 = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lv3_1lives.png")
+        self.maze_image1_lvl3 = pygame.image.load("stuff/lv3_1lives.png")
         self.maze_image1_lvl3 = pygame.transform.scale(self.maze_image1_lvl3, (self.game.DISPLAY_W, self.game.DISPLAY_H))
 
         #lock things:
         self.lock_pos = None #to store lock's position
         self.lock_timer = 0 #will remain ON 5 seconds
-        self.lock_image = pygame.image.load("D:\\Semester 5\\AI LAB\\LockNChase-main\\stuff\\lock.png")
+        self.lock_image = pygame.image.load("stuff/lock.png")
         self.lock_image = pygame.transform.scale(self.lock_image, (self.cell_size, self.cell_size))
 
         # -------------- simulated annealing --------------
