@@ -6,17 +6,12 @@ import math
 import heapq
 import copy
 import os
-from ASP.EMBASP.AspBridge import AspBridge  # <-- import pulito
+from ASP.EMBASP.AspBridge import AspBridge
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DLV2_PATH = os.path.join(BASE_DIR, "ASP", "DLV", "dlv2.exe")   # su Windows: "dlv2.exe"
 ENCODING_PATH = os.path.join(BASE_DIR, "ASP", "CODE", "aiGabriel.asp")
-
-# dentro MazeGame.__init__ dopo self.maze = [...]
-self.asp = AspBridge(DLV2_PATH, ENCODING_PATH)
-self.asp.set_static(self.maze)
-self.tick = 0
-
 
 
 class Game():
@@ -216,6 +211,16 @@ class MazeGame:
         # --------- minimax + alpha beta pruning ----------
         self.move_history = []
         
+    def _asp_dynamic_facts(self) -> str:
+        facts = []
+        facts.append(f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).")
+        facts.append(f"pos_player({self.player_pos[0]},{self.player_pos[1]}).")
+        if self.lock_pos is not None:
+            facts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
+        # opzionale ma utile:
+        if hasattr(self, "last_silly_pos") and self.last_silly_pos is not None:
+            facts.append(f"pos_silly_prev({self.last_silly_pos[0]},{self.last_silly_pos[1]}).")
+        return "\n".join(facts)
 
         
     def _asp_dynamic_facts(self) -> str:
@@ -283,17 +288,20 @@ class MazeGame:
         self.game.draw_text(f'Score: {self.player_score}', size=24, x=1100, y=510)
 
     def move_silly_with_asp(self):
-        """Chiede al solver la prossima mossa e aggiorna la UI."""
         dyn = self._asp_dynamic_facts()
         nxt = self.asp.decide_move(dyn)
-        self.tick += 1  # avanza il tempo logico
-
+        self.tick += 1
         if nxt is None:
-            return  # nessuna mossa disponibile
+            print("NO_MOVE_FROM_SOLVER")
+            return False
         nx, ny = nxt
-        # sicurezza: rispetta comunque i blocchi della UI
+        print(f"MOVE({nx},{ny})")  # conferma che IDLV ha risposto
+        self.last_silly_pos = self.silly_pos[:]   # salva per pos_silly_prev
         if not self.is_blocked((nx, ny)):
             self.silly_pos = [nx, ny]
+            return True
+        print("SOLVER_MOVE_BLOCKED")
+        return False
 
 
     def draw_player(self):
