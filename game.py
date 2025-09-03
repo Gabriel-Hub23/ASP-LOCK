@@ -73,17 +73,17 @@ class Game():
                 maze_game.handle_input_player()
                 player_move_timer = 0
 
-           # if silly_move_timer >= silly_delay:
-            maze_game.move_silly_with_asp()
-            print("----------------------------------------------------------------------")
-            silly_move_timer = 0 
+            if silly_move_timer >= silly_delay:
+                maze_game.move_silly_with_asp()
+                print("----------------------------------------------------------------------")
+                silly_move_timer = 0 
 
             player_move_timer += 1
             silly_move_timer += 1
             maze_game.check_collisions()
             self.window.blit(self.display, (0, 0))
             pygame.display.update()
-            self.clock.tick(60) #60 fps lol
+            self.clock.tick(30) #fps 
             self.reset_keys()
 
 
@@ -225,29 +225,15 @@ class MazeGame:
 
         
     def _asp_dynamic_facts(self) -> str:
-        """Serializza lo stato corrente in fatti ASP."""
-        facts = []
+    # SOLO ciò che serve all'encoding
+        parts = [
+            f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).",
+            f"pos_player({self.player_pos[0]},{self.player_pos[1]}).",
+        ]
+        if getattr(self, "lock_pos", None) is not None:
+            parts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
+        return "\n".join(parts)
 
-        # posizioni
-        facts.append(f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).")
-        facts.append(f"pos_player({self.player_pos[0]},{self.player_pos[1]}).")
-
-        # lock (se presente)
-        if self.lock_pos is not None:
-            facts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
-
-        # monete (se vuoi che il solver le usi)
-        for x in range(len(self.maze)):
-            for y in range(len(self.maze[0])):
-                if self.maze[x][y] == 2:  # 2 = coin nella tua mappa
-                    facts.append(f"coin({x},{y}).")
-
-        # meta-info utili per regole personalizzate
-        facts.append(f"lives({self.lives}).")
-        facts.append(f"score({self.player_score}).")
-        facts.append(f"tick({self.tick}).")
-
-        return "\n".join(facts)
 
 
     def draw_maze(self):
