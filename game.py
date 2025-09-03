@@ -4,7 +4,20 @@ import time
 import random
 import math
 import heapq
-import copy 
+import copy
+import os
+from ASP.EMBASP.AspBridge import AspBridge  # <-- import pulito
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DLV2_PATH = os.path.join(BASE_DIR, "ASP", "DLV", "dlv2.exe")   # su Windows: "dlv2.exe"
+ENCODING_PATH = os.path.join(BASE_DIR, "ASP", "CODE", "aiGabriel.asp")
+
+# dentro MazeGame.__init__ dopo self.maze = [...]
+self.asp = AspBridge(DLV2_PATH, ENCODING_PATH)
+self.asp.set_static(self.maze)
+self.tick = 0
+
+
 
 class Game():
     def __init__(self):
@@ -65,27 +78,10 @@ class Game():
                 maze_game.handle_input_player()
                 player_move_timer = 0
 
-            if silly_move_timer >= silly_delay:
-                if maze_game.level == 1:
-                    maze_game.handle_input_silly_level1_simulated_annealing()
-                elif maze_game.level == 2:
-                    if maze_game.player_moved or maze_game.obstacle_changed or not maze_game.path:
-                        maze_game.path = maze_game.a_star_search(tuple(maze_game.silly_pos), tuple(maze_game.player_pos))
-                        maze_game.player_moved = False
-                        maze_game.obstacle_changed = False
-                    if maze_game.path:
-                        next_pos = maze_game.path.pop(0)
-                        if not maze_game.move_silly_locks(next_pos):
-                            maze_game.path = maze_game.a_star_search(tuple(maze_game.silly_pos), tuple(maze_game.player_pos))
-                
-                elif maze_game.level == 3:
-                    print("i am in level 3")
-                    move, score = maze_game.best_move(1, True) #the first value passed here is the depth to which we explore game tree 3 is optimal
-                                                               #i think though a bit laggy :(
-                    if move:
-                        maze_game.silly_pos = move
-                        print(f"best move {move} found with score {score}")
-                silly_move_timer = 0 
+           # if silly_move_timer >= silly_delay:
+            maze_game.move_silly_with_asp()
+            print("----------------------------------------------------------------------")
+            silly_move_timer = 0 
 
             player_move_timer += 1
             silly_move_timer += 1
@@ -144,6 +140,11 @@ class MazeGame:
             [1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ]
+
+        self.asp = AspBridge(DLV2_PATH, ENCODING_PATH)
+        self.asp.set_static(self.maze)
+        self.tick = 0
+
         self.cell_size = 36
 
         self.lives = 3
@@ -215,6 +216,34 @@ class MazeGame:
         # --------- minimax + alpha beta pruning ----------
         self.move_history = []
         
+
+        
+    def _asp_dynamic_facts(self) -> str:
+        """Serializza lo stato corrente in fatti ASP."""
+        facts = []
+
+        # posizioni
+        facts.append(f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).")
+        facts.append(f"pos_player({self.player_pos[0]},{self.player_pos[1]}).")
+
+        # lock (se presente)
+        if self.lock_pos is not None:
+            facts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
+
+        # monete (se vuoi che il solver le usi)
+        for x in range(len(self.maze)):
+            for y in range(len(self.maze[0])):
+                if self.maze[x][y] == 2:  # 2 = coin nella tua mappa
+                    facts.append(f"coin({x},{y}).")
+
+        # meta-info utili per regole personalizzate
+        facts.append(f"lives({self.lives}).")
+        facts.append(f"score({self.player_score}).")
+        facts.append(f"tick({self.tick}).")
+
+        return "\n".join(facts)
+
+
     def draw_maze(self):
         if self.level == 1:
             if self.lives == 3:
@@ -252,6 +281,19 @@ class MazeGame:
             self.game.display.blit(self.lock_image, (lock_x, lock_y))
 
         self.game.draw_text(f'Score: {self.player_score}', size=24, x=1100, y=510)
+
+    def move_silly_with_asp(self):
+        """Chiede al solver la prossima mossa e aggiorna la UI."""
+        dyn = self._asp_dynamic_facts()
+        nxt = self.asp.decide_move(dyn)
+        self.tick += 1  # avanza il tempo logico
+
+        if nxt is None:
+            return  # nessuna mossa disponibile
+        nx, ny = nxt
+        # sicurezza: rispetta comunque i blocchi della UI
+        if not self.is_blocked((nx, ny)):
+            self.silly_pos = [nx, ny]
 
 
     def draw_player(self):
