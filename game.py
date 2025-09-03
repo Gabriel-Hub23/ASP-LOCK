@@ -220,6 +220,7 @@ class MazeGame:
         # opzionale ma utile:
         if hasattr(self, "last_silly_pos") and self.last_silly_pos is not None:
             facts.append(f"pos_silly_prev({self.last_silly_pos[0]},{self.last_silly_pos[1]}).")
+        
         return "\n".join(facts)
 
         
