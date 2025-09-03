@@ -1,57 +1,45 @@
-% ======================================================
-% Dominio e celle libere (facts da bridge: cell/2, wall/2, lock/2, maxd/1)
-% ======================================================
+% ================================================
+% Fatti statici passati dal bridge:
+%   cell(X,Y).         tutte le celle
+%   wall(X,Y).         muri
+%   lock(X,Y).         lucchetti
+%   pos_silly(SX,SY).  posizione nemico
+%   pos_player(PX,PY). posizione player
+% ================================================
+
+% Cella libera: X,Y già legati da cell/2
 free(X,Y) :- cell(X,Y), not wall(X,Y), not lock(X,Y).
 
-% Posizioni dal gioco:
-% pos_silly(SX,SY).
-% pos_player(PX,PY).
-% (opzionale) pos_silly_prev(PSX,PSY).
+% Adiacenze (X,Y liberi -> NX,NY legati)
+adj(X,Y,NX,Y) :- free(X,Y), NX = X+1, free(NX,Y).
+adj(X,Y,NX,Y) :- free(X,Y), NX = X-1, free(NX,Y).
+adj(X,Y,X,NY) :- free(X,Y), NY = Y+1, free(X,NY).
+adj(X,Y,X,NY) :- free(X,Y), NY = Y-1, free(X,NY).
 
-% ------------------------------------------------------
-% Adiacenze tra celle libere (SAFE)
-% ------------------------------------------------------
-adj(X,Y,X1,Y) :- free(X,Y), X1 = X+1, free(X1,Y).
-adj(X,Y,X1,Y) :- free(X,Y), X1 = X-1, free(X1,Y).
-adj(X,Y,X,Y1) :- free(X,Y), Y1 = Y+1, free(X,Y1).
-adj(X,Y,X,Y1) :- free(X,Y), Y1 = Y-1, free(X,Y1).
-
-% Candidati: mosse possibili dal nemico
+% Candidati: posizioni adiacenti al nemico
 cand(NX,NY) :- pos_silly(SX,SY), adj(SX,SY,NX,NY).
 
-% ------------------------------------------------------
-% Bounded BFS dal player (evita generazione infinita)
-% ------------------------------------------------------
-dist(PX,PY,0) :- pos_player(PX,PY), free(PX,PY).
+% Manhattan distance al player (variabili legate da cand/2 e pos_player/2)
+dx(NX,NY,Dx) :- cand(NX,NY), pos_player(PX,PY), Dx = NX - PX.
+dy(NX,NY,Dy) :- cand(NX,NY), pos_player(PX,PY), Dy = NY - PY.
 
-dist(X2,Y2,D1) :-
-    dist(X1,Y1,D), adj(X1,Y1,X2,Y2), free(X2,Y2),
-    maxd(M), D < M, D1 = D + 1.
+abs(A,B) :- A>=0, B=A.
+abs(A,B) :- A<0,  B=-A.
 
-% minima distanza nota per cella libera
-mindist(X,Y,MD) :- free(X,Y), MD = #min { K : dist(X,Y,K) }.
+manhattan(NX,NY,M) :- dx(NX,NY,Dx), abs(Dx,AX),
+                       dy(NX,NY,Dy), abs(Dy,AY),
+                       M = AX + AY.
 
-% ------------------------------------------------------
-% Scelta: il candidato con mindist minima
-% ------------------------------------------------------
-best(NX,NY,D) :-
-    cand(NX,NY), mindist(NX,NY,D),
-    D = #min { V : cand(CX,CY), mindist(CX,CY,V) }.
+% Score = distanza Manhattan
+score(NX,NY,M) :- manhattan(NX,NY,M).
 
-% Tie-break deterministico (X poi Y)
-minX(X) :- best(X,_,_), X = #min { CX : best(CX,CY,_) }.
-minY(Y) :- best(X,Y,_), minX(X), Y = #min { CY : best(X,CY,_) }.
+% Selezione del minimo: 1 sola mossa
+minS(S)    :- S = #min { V : score(X,Y,V) }.
+best(NX,NY) :- score(NX,NY,S), minS(S).
+
+% Tie-break deterministico per garantire UNA sola soluzione
+minX(X) :- best(X,_), X = #min { CX : best(CX,CY) }.
+minY(Y) :- best(X,Y), minX(X), Y = #min { CY : best(X,CY) }.
 
 % Mossa finale unica
-move(X,Y) :- best(X,Y,_), minX(X), minY(Y).
-
-% ------------------------------------------------------
-% Fallback: se il player non è raggiungibile (nessuna mindist),
-% scegli comunque un candidato con tie-break (X,Y min).
-% ------------------------------------------------------
-fallback_cand :- not best(_,_,_), cand(_, _).
-
-fminX(X) :- fallback_cand, X = #min { CX : cand(CX,CY) }.
-fminY(Y) :- fallback_cand, fminX(X), Y = #min { CY : cand(X,CY) }.
-
-move(X,Y) :- fallback_cand, fminX(X), fminY(Y).
+move(X,Y) :- best(X,Y), minX(X), minY(Y).
