@@ -139,10 +139,10 @@ class MazeGame:
         self.asp = AspBridge(DLV2_PATH, ENCODING_PATH)
         # prima di chiamare set_static
         rows = len(self.maze)
-        cols = len(self.maze[0]) if rows else 0
-        walls = [(x, y) for x, row in enumerate(self.maze) for y, v in enumerate(row) if v == 1]
+        self.cols = len(self.maze[0]) if rows else 0
+        self.walls = [(x, y) for x, row in enumerate(self.maze) for y, v in enumerate(row) if v == 1]
 
-        self.asp.set_static(rows, cols, walls)
+        #self.asp.set_static(rows, cols, walls)
         self.tick = 0
 
         self.cell_size = 36
@@ -269,6 +269,11 @@ class MazeGame:
         self.game.draw_text(f'Score: {self.player_score}', size=24, x=1100, y=510)
 
     def move_silly_with_asp(self):
+        move = self.asp.decide_move(self.silly_pos, self.player_pos, self.walls)
+        
+        print("Mossa scelta:", move)  # es. "up"
+
+        '''
         dyn = self._asp_dynamic_facts()
        
         sx, sy = self.silly_pos[0], self.silly_pos[1]
@@ -289,7 +294,7 @@ class MazeGame:
             return True
         print("SOLVER_MOVE_BLOCKED")
         return False
-
+        '''
 
     def draw_player(self):
         x, y = self.player_pos[1] * self.cell_size + self.x_offset, self.player_pos[0] * self.cell_size + self.y_offset
