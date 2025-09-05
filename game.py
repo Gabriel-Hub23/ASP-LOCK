@@ -10,8 +10,8 @@ from ASP.EMBASP.AspBridge import AspBridge
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DLV2_PATH = os.path.join(BASE_DIR, "ASP", "DLV", "dlv2.exe")   # su Windows: "dlv2.exe"
-ENCODING_PATH = os.path.join(BASE_DIR, "ASP", "CODE", "aiGabriel.asp")
+DLV2_PATH = r"ASP/DLV/dlv2.exe"   # su Windows: "dlv2.exe"
+ENCODING_PATH = r"ASP/CODE/aiGabriel.asp"
 
 
 class Game():
