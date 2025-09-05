@@ -1,12 +1,15 @@
-# AspBridge.py (DLV2) — completo
-# - Carica il .asp statico
+# ASP/EMBASP/AspBridge.py
+# ------------------------------------------------------------
+# Bridge EMBASP per DLV2 (dlv2*.exe)
+# - Carica il file .asp statico
 # - Passa i fatti dinamici (self/2, player/2, wall/2)
 # - Esegue DLV2 via EmbASP
 # - Estrae chosen_move(up|down|left|right) dagli AnswerSets
-# - Debug opzionale (stampa fatti e raw output)
-# - Fallback Python se il solver non restituisce nulla
+# - Compatibile con parametri legacy: use_filter, force_inline_static (ignorato)
+# ------------------------------------------------------------
 
 from typing import Iterable, Tuple, Optional
+from pathlib import Path
 
 from embasp.platforms.desktop.desktop_handler import DesktopHandler
 from embasp.languages.asp.asp_input_program import ASPInputProgram
@@ -23,27 +26,51 @@ class AspBridge:
         silent: bool = True,
         max_models: int = 1,
         debug: bool = False,
-        add_filter: bool = True,
+        add_filter: bool = False,
+        use_filter: Optional[bool] = None,        # alias accettato
+        force_inline_static: Optional[bool] = None,  # alias accettato (IGNORATO)
     ):
         """
-        :param dlv2_path: path all'eseguibile DLV2 (es. r'ASP\\DLV\\dlv2.exe')
-        :param static_program_path: path al file .asp con le regole statiche
+        :param dlv2_path: percorso all'eseguibile DLV2 (es. r'ASP\\DLV\\dlv2.1.2.exe')
+        :param static_program_path: percorso al file .asp con le regole
         :param silent: se True aggiunge --silent
-        :param max_models: -n=k (quanti answer set cercare)
-        :param debug: se True stampa fatti e raw output
-        :param add_filter: se True aggiunge --filter=chosen_move/1 e --no-facts (pulizia stdout)
+        :param max_models: -n=k
+        :param debug: se True stampa fatti e answer sets
+        :param add_filter: se True usa --filter=chosen_move/1 (solo stdout)
+        :param use_filter: alias di add_filter (retro-compatibilità)
+        :param force_inline_static: accettato ma ignorato (retro-compatibilità)
         """
-        self.dlv2_path = dlv2_path
-        self.static_program_path = static_program_path
+        self.dlv2_path = str(Path(dlv2_path).resolve())
+        self.static_program_path = str(Path(static_program_path).resolve())
         self.silent = bool(silent)
         self.max_models = max(1, int(max_models))
         self.debug = bool(debug)
-        self.add_filter = bool(add_filter)
+        # usa use_filter se passato, altrimenti add_filter
+        self.add_filter = bool(add_filter) if use_filter is None else bool(use_filter)
+        # force_inline_static intenzionalmente ignorato
+
+        if not Path(self.dlv2_path).exists():
+            raise FileNotFoundError(f"DLV2 non trovato: {self.dlv2_path}")
+        if not Path(self.static_program_path).exists():
+            raise FileNotFoundError(f"File ASP non trovato: {self.static_program_path}")
+
+    # toggle opzionali
+    def set_debug(self, enabled: bool = True) -> None:
+        self.debug = bool(enabled)
+
+    def set_silent(self, enabled: bool = True) -> None:
+        self.silent = bool(enabled)
+
+    def set_filter(self, enabled: bool = True) -> None:
+        self.add_filter = bool(enabled)
+
+    def set_max_models(self, k: int = 1) -> None:
+        self.max_models = max(1, int(k))
 
     def _build_handler(self) -> DesktopHandler:
         service = DLV2DesktopService(self.dlv2_path)
         handler = DesktopHandler(service)
-        # Opzioni: devono essere OptionDescriptor (NON stringhe)
+        # Opzioni come OptionDescriptor (NON stringhe)
         if self.silent:
             handler.add_option(OptionDescriptor("--silent"))
         handler.add_option(OptionDescriptor(f"-n={self.max_models}"))
@@ -52,24 +79,6 @@ class AspBridge:
             handler.add_option(OptionDescriptor("--no-facts"))
         return handler
 
-    @staticmethod
-    def _python_fallback_move(
-        self_pos: Tuple[int, int], walls: Iterable[Tuple[int, int]]
-    ) -> str:
-        """Se il solver non restituisce nulla, scegli una mossa semplice evitando i muri."""
-        sx, sy = self_pos
-        W = set((int(x), int(y)) for (x, y) in walls)
-        candidates = [
-            ("up", (sx, sy - 1)),
-            ("down", (sx, sy + 1)),
-            ("left", (sx - 1, sy)),
-            ("right", (sx + 1, sy)),
-        ]
-        for d, (nx, ny) in candidates:
-            if (nx, ny) not in W:
-                return d
-        return "up"  # bloccato da muri su tutti i lati: scegli comunque una direzione
-
     def decide_move(
         self,
         self_pos: Tuple[int, int],
@@ -77,16 +86,16 @@ class AspBridge:
         walls: Iterable[Tuple[int, int]],
     ) -> Optional[str]:
         """
-        :return: 'up' | 'down' | 'left' | 'right' (mai None grazie al fallback)
+        Ritorna: 'up' | 'down' | 'left' | 'right' | None
         """
         handler = self._build_handler()
 
-        # Programma statico da file
+        # Programma statico
         static_prog = ASPInputProgram()
         static_prog.add_files_path(self.static_program_path)
         handler.add_program(static_prog)
 
-        # Fatti dinamici (forziamo int per evitare 5.0)
+        # Fatti dinamici (forza int)
         sx, sy = map(int, self_pos)
         px, py = map(int, player_pos)
 
@@ -101,29 +110,27 @@ class AspBridge:
         handler.add_program(dyn_prog)
 
         if self.debug:
-            print("=== FATTI INVIATI A DLV2 ===")
-            print("".join(facts))
+            print("=== DLV2 PATH ===", self.dlv2_path)
+            print("=== ASP FILE  ===", self.static_program_path)
+            print("=== FACTS ===\n", "".join(facts))
 
-        # Esecuzione sincrona
+        # Esecuzione
         output = handler.start_sync()
 
-        if self.debug:
-            print("=== DLV2 RAW OUTPUT ===")
-            print(str(output))
-
-        # 1) Parsing via API
+        # Parsing AnswerSets
         if isinstance(output, AnswerSets):
-            for ans in output.get_answer_sets() or []:
+            answer_sets = output.get_answer_sets() or []
+            if self.debug:
+                for i, ans in enumerate(answer_sets, 1):
+                    atoms = ", ".join(str(a) for a in ans.get_atoms())
+                    print(f"AS #{i}: {atoms}")
+            for ans in answer_sets:
                 for atom in ans.get_atoms():
-                    s = str(atom).lower().strip()
+                    s = str(atom).strip().lower()
                     if s.startswith("chosen_move(") and s.endswith(")"):
-                        return s[12:-1]  # up/down/left/right
+                        return s[12:-1]
 
-        # 2) Fallback: ricerca testuale nel raw output (es. in caso di errori di tipo)
-        txt = (str(output) or "").lower()
-        for d in ("up", "down", "left", "right"):
-            if f"chosen_move({d})" in txt:
-                return d
-
-        # 3) Ultimo paracadute: fallback Python
-        return None #self._python_fallback_move((sx, sy), walls)
+        if self.debug:
+            print("=== NESSUNA chosen_move(...) negli AnswerSets ===")
+            print("RAW:", str(output))
+        return None
