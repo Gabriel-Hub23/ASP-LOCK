@@ -100,6 +100,7 @@ class AspBridge:
 
         # b) se è AnswerSets, scorri gli atomi
         answer_sets = output.get_answer_sets() or []
+        print("OUTPUT:", output.get_answer_sets())
         for ans in answer_sets:
             for atom in ans.get_atoms():
                 s = str(atom).lower()
