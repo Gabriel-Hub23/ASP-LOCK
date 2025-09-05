@@ -1,13 +1,13 @@
-# AspBridge.py
+# AspBridge.py (DLV2)
 # ------------------------------------------------------------
-# Bridge minimale per usare DLV (o DLV2) con EmbASP da Python.
-# - Aggiunge un programma statico da file .asp
-# - Costruisce i fatti dinamici (self, player, wall)
-# - Esegue il solver e restituisce chosen_move(up|down|left|right)
+# Bridge per usare DLV2 con EmbASP (Python).
+# - Carica un programma statico .asp (regole)
+# - Aggiunge fatti dinamici (self/2, player/2, wall/2)
+# - Esegue DLV2 e restituisce chosen_move(up|down|left|right)
 #
 # USO:
 #   from ASP.EMBASP.AspBridge import AspBridge
-#   asp = AspBridge(dlv_path="ASP/DLV/dlv.exe", static_program_path="ASP/mycode.asp")
+#   asp = AspBridge(dlv2_path=r"ASP\DLV\dlv2.exe", static_program_path=r"ASP\mycode.asp")
 #   move = asp.decide_move((sx,sy), (px,py), walls=[(x1,y1), (x2,y2)])
 #   print(move)  # "up" | "down" | "left" | "right" | None
 # ------------------------------------------------------------
@@ -17,49 +17,43 @@ from embasp.languages.asp.asp_input_program import ASPInputProgram
 from embasp.languages.asp.answer_sets import AnswerSets
 from embasp.base.option_descriptor import OptionDescriptor
 
-# Se usi DLV classico:
-from embasp.specializations.dlv.desktop.dlv_desktop_service import DLVDesktopService
-# Se usi DLV2, commenta la riga sopra e decommenta questa:
-# from embasp.specializations.dlv2.desktop.dlv2_desktop_service import DLV2DesktopService
+# >>> DLV2 <<<
+from embasp.specializations.dlv2.desktop.dlv2_desktop_service import DLV2DesktopService
 
 
 class AspBridge:
-    def __init__(self, dlv_path: str, static_program_path: str, use_dlv2: bool = False, silent: bool = True):
+    def __init__(self, dlv2_path: str, static_program_path: str, silent: bool = True, max_models: int = 1):
         """
-        :param dlv_path: path all'eseguibile del solver (es. 'ASP/DLV/dlv.exe' su Windows)
+        :param dlv2_path: path all'eseguibile DLV2 (p.es. 'ASP/DLV/dlv2.exe' su Windows)
         :param static_program_path: path al file .asp con le regole statiche
-        :param use_dlv2: se True usa DLV2DesktopService, altrimenti DLVDesktopService
-        :param silent: se True aggiunge opzione -silent
+        :param silent: se True aggiunge opzione '--silent'
+        :param max_models: numero massimo di answer set (default 1)
         """
-        self.dlv_path = dlv_path
+        self.dlv2_path = dlv2_path
         self.static_program_path = static_program_path
-        self.use_dlv2 = use_dlv2
         self.silent = silent
+        self.max_models = max(1, int(max_models))
 
     def _build_handler(self) -> DesktopHandler:
-        # Crea il service corretto in base al solver scelto
-        if self.use_dlv2:
-            # service = DLV2DesktopService(self.dlv_path)
-            raise NotImplementedError("Imposta l'import di DLV2DesktopService e rimuovi questo raise se usi DLV2.")
-        else:
-            service = DLVDesktopService(self.dlv_path)
-
+        service = DLV2DesktopService(self.dlv2_path)
         handler = DesktopHandler(service)
 
-        # Opzioni: devono essere OptionDescriptor, NON stringhe
+        # Opzioni: devono essere OptionDescriptor (non stringhe)
+        # DLV2 accetta in genere '--silent' e '-n=<k>'
         if self.silent:
-            handler.add_option(OptionDescriptor("-silent"))
-        handler.add_option(OptionDescriptor("-n=1"))  # una sola answer set basta
+            handler.add_option(OptionDescriptor("--silent"))
+        handler.add_option(OptionDescriptor(f"-n={self.max_models}"))
 
         return handler
 
     def decide_move(self, self_pos, player_pos, walls):
         """
-        :param self_pos: tuple (sx, sy)
-        :param player_pos: tuple (px, py)
-        :param walls: iterable di (x, y) per i muri
+        :param self_pos: (sx, sy)  -> interi
+        :param player_pos: (px, py) -> interi
+        :param walls: iterable di (x, y) -> interi
         :return: 'up' | 'down' | 'left' | 'right' | None
         """
+        # Costruisci handler nuovo ad ogni chiamata per evitare stato "sporco"
         handler = self._build_handler()
 
         # 1) Programma statico da file
@@ -68,40 +62,47 @@ class AspBridge:
         handler.add_program(static_prog)
 
         # 2) Fatti dinamici
-        dyn_prog = ASPInputProgram()
         sx, sy = self_pos
         px, py = player_pos
+
+        # Controllo "soft": assicuriamoci che siano interi (evita 5.0)
+        try:
+            sx, sy, px, py = int(sx), int(sy), int(px), int(py)
+        except Exception:
+            pass
 
         facts = []
         facts.append(f"self({sx},{sy}).\n")
         facts.append(f"player({px},{py}).\n")
         for (wx, wy) in walls:
+            try:
+                wx, wy = int(wx), int(wy)
+            except Exception:
+                pass
             facts.append(f"wall({wx},{wy}).\n")
 
+        dyn_prog = ASPInputProgram()
         dyn_prog.add_program("".join(facts))
         handler.add_program(dyn_prog)
 
-        # 3) Esegui sincrono
+        # 3) Esecuzione sincrona
         output = handler.start_sync()
 
-        # 4) Parsing robusto: cerca chosen_move(dir)
-        # Se non arriva un AnswerSets (capita con errori), prova parsing testuale.
+        # 4) Parsing robusto
+        # a) se non è un AnswerSets, prova a cercare il testo 'chosen_move(...)'
         if not isinstance(output, AnswerSets):
-            txt = str(output).lower()
+            txt = (str(output) or "").lower()
             for d in ("up", "down", "left", "right"):
                 if f"chosen_move({d})" in txt:
                     return d
             return None
 
-        # Answer sets OK: scorri gli atomi alla ricerca di chosen_move(...)
-        answer_sets = output.get_answer_sets()
-        if not answer_sets:
-            return None
-
+        # b) se è AnswerSets, scorri gli atomi
+        answer_sets = output.get_answer_sets() or []
         for ans in answer_sets:
             for atom in ans.get_atoms():
                 s = str(atom).lower()
                 if s.startswith("chosen_move(") and s.endswith(")"):
-                    return s[12:-1]  # estrae la direzione tra le parentesi
+                    return s[12:-1]  # estrae up/down/left/right
 
         return None
