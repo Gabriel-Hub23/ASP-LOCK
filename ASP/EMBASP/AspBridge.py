@@ -82,6 +82,7 @@ class AspBridge:
             facts.append(f"wall({wx},{wy}).\n")
 
         dyn_prog = ASPInputProgram()
+        print("".join(facts))
         dyn_prog.add_program("".join(facts))
         handler.add_program(dyn_prog)
 
