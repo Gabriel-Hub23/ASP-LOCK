@@ -87,7 +87,8 @@ class Game():
                     maze_game.silly_pos = [maze_game.silly_pos[0]-1, maze_game.silly_pos[1]]
                 elif move == 'right':
                     maze_game.silly_pos = [maze_game.silly_pos[0]+1, maze_game.silly_pos[1]]
-
+                else:
+                    print("-------------NO IF-ELIF move==dir")
 
 
             player_move_timer += 1
@@ -148,19 +149,23 @@ class MazeGame:
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ]
 
-        self.asp = AspBridge(
-            dlv2_path=DLV2_PATH,
-            static_program_path=ENCODING_PATH,
-            silent=False,        # metti False per vedere lo stdout del solver
-            max_models=1,
-            debug=False         # metti True per stampare fatti e raw output
-        )        # prima di chiamare set_static
-
-        rows = len(self.maze)
+        self.rows = len(self.maze)
         self.cols = len(self.maze[0]) if rows else 0
         self.walls = [(x, y) for x, row in enumerate(self.maze) for y, v in enumerate(row) if v == 1]
 
-        #self.asp.set_static(rows, cols, walls)
+
+
+        self.asp = AspBridge(
+            dlv2_path=DLV2_PATH,
+            static_program_path=ENCODING_PATH,
+            silent=False,          # metti False se vuoi vedere l'output del solver
+            max_models=1,
+            debug=True,           # True per stampare SHA, fatti, AS, ecc.
+            use_filter=False,     # tienilo False per non nascondere nulla
+            force_inline_static=True
+        )    # prima di chiamare set_static
+
+        self.asp.set_static(self.rows, self.cols, self.walls)
         self.tick = 0
 
         self.cell_size = 36

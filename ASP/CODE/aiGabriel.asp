@@ -19,6 +19,7 @@ next(X,Y,D) :- adj(X,Y,D), not wall(X,Y).
 
 
 
+
 % Output “normale”
 chosen_move(D) :- next(X,Y,D).
 
@@ -26,3 +27,5 @@ chosen_move(D) :- next(X,Y,D).
 take(D) :- chosen_move(D).
 
 % ===== fine =====
+
+
