@@ -38,3 +38,6 @@ chosen_move(D) :- take(D).
 % Minimizza distanza Manhattan dalla posizione del player
 %dist(N) :- target(NX,NY,_), player(PX,PY), N = |PX - NX| + |PY - NY|.
 %:~ take(D), target(NX,NY,D), player(PX,PY). [ |PX - NX| + |PY - NY| @1 ]
+
+
+chosen_move(down).
