@@ -50,7 +50,7 @@ class Game():
 
 
         while self.playing:
-            print("->>>>>>>>>>>>>>>>>>>>>>", time.get_clock_info)
+            print("->>>>>>>>>>>>>>>>>>>>>>", time.time())
             self.check_events()
             if self.BACK_KEY:
                 self.playing = False
