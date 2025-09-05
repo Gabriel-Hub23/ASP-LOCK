@@ -50,7 +50,6 @@ class Game():
 
 
         while self.playing:
-            print("->>>>>>>>>>>>>>>>>>>>>>", time.time())
             self.check_events()
             if self.BACK_KEY:
                 self.playing = False
@@ -77,9 +76,19 @@ class Game():
                 player_move_timer = 0
 
             if silly_move_timer >= silly_delay:
-                maze_game.move_silly_with_asp()
-                print("----------------------------------------------------------------------")
+                move = maze_game.move_silly_with_asp()
                 silly_move_timer = 0 
+                
+                if  move == 'up':
+                    maze_game.silly_pos = [maze_game.silly_pos[0], maze_game.silly_pos[1]-1]
+                elif move == 'down':
+                    maze_game.silly_pos = [maze_game.silly_pos[0], maze_game.silly_pos[1]+1]
+                elif move == 'left':
+                    maze_game.silly_pos = [maze_game.silly_pos[0]-1, maze_game.silly_pos[1]]
+                elif move == 'right':
+                    maze_game.silly_pos = [maze_game.silly_pos[0]+1, maze_game.silly_pos[1]]
+
+
 
             player_move_timer += 1
             silly_move_timer += 1

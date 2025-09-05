@@ -126,4 +126,4 @@ class AspBridge:
                 return d
 
         # 3) Ultimo paracadute: fallback Python
-        return self._python_fallback_move((sx, sy), walls)
+        return None #self._python_fallback_move((sx, sy), walls)
