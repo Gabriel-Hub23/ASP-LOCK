@@ -136,7 +136,7 @@ class MazeGame:
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ]
 
-        self.asp = AspBridge(DLV2_PATH, ENCODING_PATH)
+        self.asp = AspBridge(dlv_path=DLV2_PATH, static_program_path=ENCODING_PATH, use_dlv2=True)
         # prima di chiamare set_static
         rows = len(self.maze)
         self.cols = len(self.maze[0]) if rows else 0
@@ -270,7 +270,7 @@ class MazeGame:
 
     def move_silly_with_asp(self):
         move = self.asp.decide_move(self.silly_pos, self.player_pos, self.walls)
-        
+
         print("Mossa scelta:", move)  # es. "up"
 
         '''
