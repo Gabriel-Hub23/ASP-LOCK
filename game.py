@@ -136,7 +136,7 @@ class MazeGame:
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ]
 
-        self.asp = AspBridge(dlv_path=DLV2_PATH, static_program_path=ENCODING_PATH, use_dlv2=True)
+        self.asp = AspBridge(dlv2_path=DLV2_PATH, static_program_path=ENCODING_PATH, silent=True, max_models=1)
         # prima di chiamare set_static
         rows = len(self.maze)
         self.cols = len(self.maze[0]) if rows else 0
