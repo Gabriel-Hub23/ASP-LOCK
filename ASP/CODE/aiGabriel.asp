@@ -4,26 +4,23 @@
 %   player(PX,PY).
 %   wall(X,Y).
 
-dir(up;down;left;right).
+
+dir(up). dir(right). dir(down). dir(left). 
 
 % Adiacenze SAFE (legate a self/2)
-next(X,Y,up,   X, Y1) | No :- self(X,Y), Y1 = Y - 1.
-next(X,Y,down, X, Y1) | No :- self(X,Y), Y1 = Y + 1.
-next(X,Y,left, X1, Y) | No :- self(X,Y), X1 = X - 1.
-next(X,Y,right,X1, Y) | No :- self(X,Y), X1 = X + 1.
-
-
-:- #count{Dir : next(X, Y, Dir, X1, X2)} != 1.
-
-% Celle target
-target(NX,NY,D) :- dir(D), next(X,Y,D,NX,NY).
+adj(I,J,D) :- self(X,Y), I=X,   J=Y-1, D=up.      %up
+adj(I,J,D) :- self(X,J), I=X,   J=Y+1, D=down.      %down
+adj(I,J,D) :- self(X,J), I=X-1, J=Y,   D=left.      %left
+adj(I,J,D) :- self(X,J), I=X+1, J=Y,    D=right.        %right
 
 % Mossa valida se non è muro
-ok(D) :- target(NX,NY,D), not wall(NX,NY).
+next(X,Y,D) :- adj(X,Y,D), not wall(X,Y).
+
+
 
 
 % Output “normale”
-chosen_move(D) :- ok(D).
+chosen_move(D) :- next(X,Y,D).
 
 % === FIX: se metti chosen_move(D). a mano, creiamo anche take(D) ===
 take(D) :- chosen_move(D).
