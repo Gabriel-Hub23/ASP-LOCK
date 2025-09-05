@@ -7,6 +7,7 @@ import heapq
 import copy
 import os
 from ASP.EMBASP.AspBridge import AspBridge
+import time
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +48,9 @@ class Game():
         player_delay = 5+0+1.5
         silly_delay = 5+5+1.5
 
+
         while self.playing:
+            print("->>>>>>>>>>>>>>>>>>>>>>", time.get_clock_info)
             self.check_events()
             if self.BACK_KEY:
                 self.playing = False
