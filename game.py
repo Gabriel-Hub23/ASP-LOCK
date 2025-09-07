@@ -6,8 +6,10 @@ import math
 import heapq
 import copy
 import os
-from ASP.EMBASP.AspBridge import AspBridge
 import time
+from ASP.EMBASP.lnc_solver import SolverLNC
+from ASP.EMBASP.predicates import *
+
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -40,6 +42,7 @@ class Game():
 
         self.level_menu = LevelMenu(self)
         self.selected_level = 1 #default
+
     
     def game_loop(self):
         maze_game = MazeGame(self, level=self.selected_level)
@@ -68,6 +71,7 @@ class Game():
 
             maze_game.update_lock()
             maze_game.draw_maze()
+            maze_game.draw_lock(self.display) 
             maze_game.draw_player()
             maze_game.draw_silly()
 
@@ -76,19 +80,8 @@ class Game():
                 player_move_timer = 0
 
             if silly_move_timer >= silly_delay:
-                move = maze_game.move_silly_with_asp()
+                maze_game.move_silly_with_asp()
                 silly_move_timer = 0 
-                
-                if  move == 'up':
-                    maze_game.silly_pos = [maze_game.silly_pos[0], maze_game.silly_pos[1]-1]
-                elif move == 'down':
-                    maze_game.silly_pos = [maze_game.silly_pos[0], maze_game.silly_pos[1]+1]
-                elif move == 'left':
-                    maze_game.silly_pos = [maze_game.silly_pos[0]-1, maze_game.silly_pos[1]]
-                elif move == 'right':
-                    maze_game.silly_pos = [maze_game.silly_pos[0]+1, maze_game.silly_pos[1]]
-                else:
-                    print("-------------NO IF-ELIF move==dir")
 
 
             player_move_timer += 1
@@ -150,22 +143,31 @@ class MazeGame:
         ]
 
         self.rows = len(self.maze)
-        self.cols = len(self.maze[0]) if rows else 0
-        self.walls = [(x, y) for x, row in enumerate(self.maze) for y, v in enumerate(row) if v == 1]
+        self.cols = len(self.maze[0]) if self.rows else 0
+       # (x=colonna, y=riga) — coerente con l’ASP: up = (x, y-1)
+        # Costruisci i muri con coordinate corrette (x=colonna, y=riga)
+        self.walls = [(j, i) for i, row in enumerate(self.maze) for j, v in enumerate(row) if v == 1]
 
 
+        
 
-        self.asp = AspBridge(
-            dlv2_path=DLV2_PATH,
-            static_program_path=ENCODING_PATH,
-            silent=False,          # metti False se vuoi vedere l'output del solver
-            max_models=1,
-            debug=True,           # True per stampare SHA, fatti, AS, ecc.
-            use_filter=False,     # tienilo False per non nascondere nulla
-            force_inline_static=True
-        )    # prima di chiamare set_static
+                # 2.1) AI EmbASP
+        DLV2_PATH = r"ASP/DLV/dlv2.exe"
+        ENCODING_PATH = r"ASP/CODE/aiGabriel.asp"   # <-- il file ASP che abbiamo scritto
+        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=True)
 
-        self.asp.set_static(self.rows, self.cols, self.walls)
+
+        # 2.2) Set rapido per controlli muro (una volta sola)
+        self.walls_set = set((int(x), int(y)) for (x, y) in self.walls)
+
+        # 2.3) Dimensioni cella (se non le hai già)
+        self.cell_w = getattr(self, "cell_w", 16)
+        self.cell_h = getattr(self, "cell_h", 16)
+                
+
+        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=True)
+
+        #self.asp.set_static(self.rows, self.cols, self.walls)
         self.tick = 0
 
         self.cell_size = 36
@@ -238,19 +240,66 @@ class MazeGame:
         self.obstacle_changed = False
         # --------- minimax + alpha beta pruning ----------
         self.move_history = []
-        
+            
+    def apply_ai_move(self, move):
+        """Applica la mossa dell'AI (stringa o numero). Aggiorna posizione e sprite del nemico."""
+        # accetta sia stringhe sia numeri (0..3)
+        dir_map = {"0":"up","1":"right","2":"down","3":"left", 0:"up",1:"right",2:"down",3:"left"}
+        move = dir_map.get(move, move)  # normalizza in 'up/down/left/right'
 
-        
-    def _asp_dynamic_facts(self) -> str:
-        parts = [
-            f"pos_silly({self.silly_pos[0]},{self.silly_pos[1]}).",
-            f"pos_player({self.player_pos[0]},{self.player_pos[1]}).",
-        ]
-        if self.lock_pos is not None:
-            parts.append(f"lock({self.lock_pos[0]},{self.lock_pos[1]}).")
-        return "\n".join(parts)
+        delta = {"up":(0,-1), "down":(0,1), "left":(-1,0), "right":(1,0)}
+        dx, dy = delta.get(move, (0,0))
+
+        x, y = map(int, self.silly_pos)
+        nx, ny = x + dx, y + dy
+
+        # blocco su muro: non muovere ma stampa (debug chiaro)
+        if (nx, ny) in self.walls_set:
+            print(f"[AI] Move '{move}' bloccata da wall @ {(nx,ny)}. Pos attuale={self.silly_pos}")
+            return
+
+        # aggiorna posizione logica
+        self.silly_pos = (nx, ny)
+
+        # aggiorna sprite/rect se esiste
+        if hasattr(self, "silly_rect"):
+            self.silly_rect.topleft = (nx * self.cell_w, ny * self.cell_h)
+
+        print(f"[AI] MOVE({move}) -> {self.silly_pos}")
 
 
+    # dentro la classe MazeGame
+
+    def update_lock(self):
+        """Aggiorna il lucchetto: countdown e sblocco cella quando scade."""
+        # se non c'è un lock attivo → niente da fare
+        if self.lock_pos is None:
+            return
+
+        # scala il timer
+        self.lock_timer -= 1
+        if self.lock_timer <= 0:
+            # disattiva il lock
+            self.lock_pos = None
+            self.lock_timer = 0
+
+    def place_lock(self, grid_x, grid_y, duration_frames=150):
+        """Attiva un lock su una cella di griglia (grid_x, grid_y) per 'duration_frames' frame."""
+        # evita di mettere lock sui muri
+        if (int(grid_x), int(grid_y)) in self.walls_set:
+            return
+        self.lock_pos = (int(grid_x), int(grid_y))
+        self.lock_timer = int(duration_frames)
+
+    def draw_lock(self, surface=None):
+        """Disegna il lock (se attivo)."""
+        if self.lock_pos is None:
+            return
+        if surface is None:
+            surface = self.game.display  # o self.game.display/screen a seconda del tuo codice
+        x, y = self.lock_pos
+        surface.blit(self.lock_image, (self.x_offset + x * self.cell_size,
+                                    self.y_offset + y * self.cell_size))
 
 
     def draw_maze(self):
@@ -291,10 +340,18 @@ class MazeGame:
 
         self.game.draw_text(f'Score: {self.player_score}', size=24, x=1100, y=510)
 
-    def move_silly_with_asp(self):
-        move = self.asp.decide_move(self.silly_pos, self.player_pos, self.walls)
 
-        print("Mossa scelta:", move)  # es. "up"
+    def move_silly_with_asp(self):
+        # passa lo stato corrente all’AI
+        self.ai.set_state(self_pos=self.silly_pos, player_pos=self.player_pos, walls=self.walls)
+        # prepara il bundle e le opzioni
+        self.ai.startAsp()
+        # prendi la mossa (stringa 'up'.. o numero '0'..)
+        move = self.ai.recallAsp()
+        print(f"Mossa scelta: {move}")
+        # applica davvero la mossa al nemico
+        self.apply_ai_move(move)
+
 
         '''
         dyn = self._asp_dynamic_facts()
@@ -347,22 +404,16 @@ class MazeGame:
             self.lock_pos = self.player_old_pos[:] #shallow copy of list, separate object in memory
             self.lock_timer = time.time() #start timer
             self.obstacle_changed=True
-            print(f"lock placed at: {self.lock_pos}")
     
     def update_lock(self):
         if self.lock_pos and time.time() - self.lock_timer >= 5: #5 seconds passed
             self.lock_pos = None
             self.obstacle_changed=False
-            print(f"lock removed from: {self.lock_pos}")
 
     def check_collisions(self):
-        print("i am in check collision function")
-        print("player pos "+str(self.player_pos))
-        print("silly pos "+str(self.silly_pos))
         if self.player_pos == self.silly_pos:
             self.life_lost_sound.play()
             self.lives -= 1 #lives--
-            print(f"collided with silly. lives left: {self.lives}")
             #now reset positions:
             self.lock_pos=None
             self.player_pos = [15, 1]
@@ -411,12 +462,9 @@ class MazeGame:
             return False
         x_diff = abs(pos[0] - lock_pos[0])
         y_diff = abs(pos[1] - lock_pos[1])
-        print("lock pos"+str(lock_pos))
-        print("silly pos" +str(pos))
-        
+    
         # One step away means either x_diff is 1 and y_diff is 0, or y_diff is 1 and x_diff is 0
         if (x_diff == 1 and y_diff == 0) or (y_diff == 1 and x_diff == 0):
-            print("lock one step away detected ")
             return True
         else:
             return False
@@ -424,7 +472,6 @@ class MazeGame:
     def handle_input_silly_level1_simulated_annealing(self):
         if self.temperature <= self.temperature_min:
             return  
-        print("self.temperature"+str(self.temperature))
         current_pos = self.silly_pos
         current_cost = self.calculate_distance(current_pos, self.player_pos)
 
@@ -498,7 +545,6 @@ class MazeGame:
                 current = came_from[current]
             else:
                 #handle the case where the path is incomplete or the goal/start is blocked
-                print(f"path reconstruction failed: {current} not reachable from {start}")
                 return []  #return an empty path
         path.reverse()
         return path
@@ -549,7 +595,6 @@ class MazeGame:
                 #alpha picks the larger value move everytime
                 alpha = max(alpha, eval)
                 if beta <= alpha: #pruning condition , iss sey neechey tree explore karney ki zarooorat hi nahi , cz jitna acha score aa chuka iss sey kam hi aaye ga , iss sey zyaada aa hi nahi sakta
-                    print("Pruning game tree chop chop")
                     break
             return max_eval
         else: #is_maximizing=False   ###its Human Player (lupin's) turn
@@ -563,7 +608,6 @@ class MazeGame:
                 #beta always picks the lower value side
                 beta = min(beta, eval)
                 if alpha >= beta:
-                    print("Pruning game tree in minimizing chop chop")
                     break
             return min_eval
    
@@ -588,13 +632,11 @@ class MazeGame:
                 best_score = score
                 best_move = move
                 alpha = max(alpha, best_score)
-                print(f"updating  best move found: {best_move} with score {best_score}")
             elif not is_maximizing and score < best_score:
                 best_score = score
                 best_move = move
                 beta = min(beta, best_score)
             if alpha >= beta:
-                print("pruning at best move function")
                 break
 
         self.move_history.append(best_move) #update the move_hisotry too na
