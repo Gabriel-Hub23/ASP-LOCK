@@ -42,6 +42,17 @@ class Wall(Predicate):
     def get_y(self): return self.y
     def set_y(self, v): self.y = v
 
+class Prev(Predicate):
+    predicate_name = "prev"
+    def __init__(self, x=None, y=None):
+        super().__init__([("x", int), ("y", int)])
+        self.x = x
+        self.y = y
+    def get_x(self): return self.x
+    def set_x(self, v): self.x = v
+    def get_y(self): return self.y
+    def set_y(self, v): self.y = v
+
 class ChosenMove(Predicate):
     predicate_name = "chosen_move"
     def __init__(self, d=None):
