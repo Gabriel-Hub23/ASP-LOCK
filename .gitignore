@@ -1,0 +1,12 @@
+
+/venv
+.idea
+.DS_Store
+*.log
+*.tmp
+*.swp
+*.bak
+*.old
+*.aux
+*.out
+
