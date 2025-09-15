@@ -4,7 +4,7 @@ import platform
 def os_checker():
     system = platform.system()
     if system == "Windows":
-        return "dlv.exe"
+        return "dlv2.exe"
     elif system == "Darwin":
         return "dlv2.1.2-macos"
     elif system == "Linux":
