@@ -90,7 +90,7 @@ class Game():
             maze_game.check_collisions()
             self.window.blit(self.display, (0, 0))
             pygame.display.update()
-            self.clock.tick(30) #fps 
+            self.clock.tick(30 * self.selected_level) #fps 
             self.reset_keys()
 
 

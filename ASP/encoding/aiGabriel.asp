@@ -7,7 +7,7 @@ adj(I,J,left,I2,J)  :- self(X,Y), I = X, J = Y, I2 = X-1, not wall(I2,Y), not lo
 adj(I,J,right,I2,J) :- self(X,Y), I = X, J = Y, I2 = X+1, not wall(I2,Y), not locked(I2,Y).
 
 % Next cell esplicita (include coordinate destinazione)
-next_cell(I,J,D,I2,J2) :- adj(I,J,D,I2,J2).  % not wall già in adj
+next_cell(I,J,D,I2,J2) :- adj(I,J,D,I2,J2).  % not wall e not locked già in adj
 
 % --- Scelta mossa (i-DLV): una e una sola mossa SE esistono opzioni ---
 chosen_move(D) | not_chosen(D) :- next_cell(_,_,D,_,_).
@@ -42,7 +42,7 @@ unreached(X,Y) :- next_cell(_,_,_,X,Y), not reached(X,Y).
 % candidati e minimo (protetto)
 cand(D,N) :- next_cell(_,_,D,X2,Y2), dist(X2,Y2,N).
 have_cand :- cand(_, _).
-min_step_cost(M) :- have_cand, M = #min { N : cand(D,N) }.
+min_step_cost(M) :- have_cand, M = #min{N : cand(D,N)}.
 
 % --- Ottimizzazione ---
 % Minimizza distanza (livello 2)
