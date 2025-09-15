@@ -149,7 +149,7 @@ class MazeGame:
         # Costruisci i muri con coordinate corrette (x=colonna, y=riga)
         self.walls = [(j, i) for i, row in enumerate(self.maze) for j, v in enumerate(row) if v == 1]
 
-        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=True)
+        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=False)
 
 
         # 2.2) Set rapido per controlli muro (una volta sola)
@@ -161,8 +161,6 @@ class MazeGame:
         self.cell_w = getattr(self, "cell_w", 16)
         self.cell_h = getattr(self, "cell_h", 16)
                 
-
-        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=True)
 
         #self.asp.set_static(self.rows, self.cols, self.walls)
         self.tick = 0
@@ -347,7 +345,7 @@ class MazeGame:
 
     def move_silly_with_asp(self):
         # passa lo stato corrente all’AI
-        self.ai.set_state(self_pos=self.silly_pos, player_pos=self.player_pos, walls=self.walls, prev_pos=self.prev_silly_pos)
+        self.ai.set_state(self_pos=self.silly_pos, player_pos=self.player_pos, walls=self.walls, prev_pos=self.prev_silly_pos, rows_cols=(self.rows, self.cols))
         # prepara il bundle e le opzioni
         self.ai.startAsp()
         # prendi la mossa (stringa 'up'.. o numero '0'..)
