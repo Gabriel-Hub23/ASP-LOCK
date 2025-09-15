@@ -10,15 +10,9 @@ from typing import List, Tuple, Optional
 
 
 class SolverLNC:
-    """Semplice wrapper DLV2 per ottenere chosen_move/1 dal tuo encoding.
-
-    Uso:
-        ai = SolverLNC(dlv_path='ASP/DLV/dlv2.exe', encoding_path='ASP/CODE/lnc_ai.asp', debug=True)
-        ai.set_state(self_pos=(sx,sy), player_pos=(px,py), walls=[(x,y), ...])
-        move = ai.recallAsp()
-    """
 
     def __init__(self, dlv_path: str, encoding_path: str, debug: bool = False, max_models: int = 1):
+        # configurazione esterna
         self.dlv_path = dlv_path
         self.encoding_path = encoding_path
         self.debug = bool(debug)
@@ -27,20 +21,25 @@ class SolverLNC:
         # opzionale: mappa numerica -> direzioni
         self.dir_map = {"0": "up", "1": "right", "2": "down", "3": "left"}
 
-        # stato dinamico
+        # stato dinamico (coordinate Python: (row, col))
         self.self_pos: Tuple[int, int] = (0, 0)
         self.player_pos: Tuple[int, int] = (0, 0)
         self.walls: List[Tuple[int, int]] = []
+        # previous position (optional), lock cells list, and optional grid size
         self.prev_pos: Optional[Tuple[int, int]] = None
+        self.lock_cells: List[Tuple[int, int]] = []
+        self.rows_cols: Optional[Tuple[int, int]] = None
 
         # carica encoding su stringa
         self._encoding = self.getEncoding(self.encoding_path)
 
-    def set_state(self, self_pos: Tuple[int, int], player_pos: Tuple[int, int], walls: List[Tuple[int, int]], prev_pos: Optional[Tuple[int,int]] = None):
+    def set_state(self, self_pos: Tuple[int, int], player_pos: Tuple[int, int], walls: List[Tuple[int, int]], prev_pos: Optional[Tuple[int,int]] = None, rows_cols: Optional[Tuple[int,int]] = None, locks: Optional[List[Tuple[int,int]]] = None):
         self.self_pos = tuple(self_pos)
         self.player_pos = tuple(player_pos)
         self.walls = list(walls) if walls is not None else []
         self.prev_pos = tuple(prev_pos) if prev_pos is not None else None
+        self.rows_cols = tuple(rows_cols) if rows_cols is not None else None
+        self.lock_cells = list(locks) if locks is not None else []
 
     def startAsp(self):
         # mantenuta per compatibilità con API: non fa nulla nella versione nativa
@@ -52,13 +51,6 @@ class SolverLNC:
 
     # --- internals ---
     def __build_bundle(self) -> str:
-        """Costruisce il testo: encoding + facts + #show chosen_move/1.
-
-        Nota: nel gioco `silly_pos` e `player_pos` sono memorizzati come [row, col].
-        L'encoding ASP usa invece convention (x=col, y=row). Qui convertiamo le coppie
-        (row,col) -> (col,row) prima di generare i fatti; le walls sono già
-        costruite in MazeGame come (col,row) quindi non vengono modificate.
-        """
         # positions in Python are (row, col) — convert to (col,row) for ASP
         sr, sc = self.self_pos
         pr, pc = self.player_pos
@@ -71,6 +63,28 @@ class SolverLNC:
             prr, pcc = self.prev_pos
             px_prev, py_prev = int(pcc), int(prr)
             facts.append(f"prev({px_prev},{py_prev}).")
+        # emit locked cells if provided (convert row,col -> x=col,y=row)
+        if self.lock_cells:
+            for (lr, lc) in self.lock_cells:
+                try:
+                    lx, ly = int(lc), int(lr)
+                    facts.append(f"locked({lx},{ly}).")
+                except Exception:
+                    continue
+        # include rows/cols facts if provided (accept tuple (rows,cols))
+        if self.rows_cols is not None:
+            try:
+                r, c = self.rows_cols
+                r_i, c_i = int(r), int(c)
+                facts.append(f"rows({r_i}).")
+                facts.append(f"cols({c_i}).")
+                # emit explicit numeric domain facts num(0). num(1). ... up to max(rows,cols)-1
+                maxn = max(0, max(r_i, c_i) - 1)
+                for i in range(0, maxn + 1):
+                    facts.append(f"num({i}).")
+            except Exception:
+                # ignore if malformed
+                pass
         bundle = [self._encoding, "% --- FACTS ---", "\n".join(facts), "% --- SHOW ---", "#show chosen_move/1."]
         if self.debug:
             print("--- BUNDLE ---")
@@ -87,6 +101,7 @@ class SolverLNC:
                 tmp = tf.name
 
             cmd = [self.dlv_path, f"-n={n_models}", tmp]
+
             if self.debug:
                 print("DLV2 CMD:", " ".join(cmd))
 

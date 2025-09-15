@@ -60,3 +60,25 @@ class ChosenMove(Predicate):
         self.d = d
     def get_d(self): return self.d
     def set_d(self, v): self.d = v
+
+class RowsCols(Predicate):
+    predicate_name = "rows_cols"
+    def __init__(self, r=None, c=None):
+        super().__init__([("r", int), ("c", int)])
+        self.r = r
+        self.c = c
+    def get_r(self): return self.r
+    def set_r(self, v): self.r = v
+    def get_c(self): return self.c
+    def set_c(self, v): self.c = v
+
+class Locked(Predicate):
+    predicate_name = "locked"
+    def __init__(self, x=None, y=None):
+        super().__init__([("x", int), ("y", int)])
+        self.x = x
+        self.y = y
+    def get_x(self): return self.x
+    def set_x(self, v): self.x = v
+    def get_y(self): return self.y
+    def set_y(self, v): self.y = v
