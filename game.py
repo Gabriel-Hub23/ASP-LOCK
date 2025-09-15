@@ -9,12 +9,13 @@ import os
 import time
 from ASP.EMBASP.lnc_solver import SolverLNC
 from ASP.EMBASP.predicates import *
-
+from os_checker import os_checker
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DLV2_PATH = r"ASP/DLV/dlv2.exe"   # su Windows: "dlv2.exe"
-ENCODING_PATH = r"ASP/CODE/aiGabriel.asp"
+program = os_checker();
+DLV2_PATH = r"ASP/DLV/{}".format(program)
+ENCODING_PATH = r"ASP/encoding/aiGabriel.asp"
 
 
 class Game():
@@ -148,24 +149,18 @@ class MazeGame:
         # Costruisci i muri con coordinate corrette (x=colonna, y=riga)
         self.walls = [(j, i) for i, row in enumerate(self.maze) for j, v in enumerate(row) if v == 1]
 
-
-        
-
-                # 2.1) AI EmbASP
-        DLV2_PATH = r"ASP/DLV/dlv2.exe"
-        ENCODING_PATH = r"ASP/CODE/aiGabriel.asp"   # <-- il file ASP che abbiamo scritto
-        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=True)
+        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=False)
 
 
         # 2.2) Set rapido per controlli muro (una volta sola)
-        self.walls_set = set((int(x), int(y)) for (x, y) in self.walls)
+        # normalizziamo walls_set in formato (row, col) perché le posizioni (player_pos/silly_pos)
+        # sono memorizzate come [row, col] nel resto del codice
+        self.walls_set = set((int(y), int(x)) for (x, y) in self.walls)
 
         # 2.3) Dimensioni cella (se non le hai già)
         self.cell_w = getattr(self, "cell_w", 16)
         self.cell_h = getattr(self, "cell_h", 16)
                 
-
-        self.ai = SolverLNC(DLV2_PATH, ENCODING_PATH, debug=True)
 
         #self.asp.set_static(self.rows, self.cols, self.walls)
         self.tick = 0
@@ -182,6 +177,9 @@ class MazeGame:
         self.silly_pos = [1, 1]
         self.silly_image = pygame.image.load("stuff/silly_colour.png")
         self.silly_image = pygame.transform.scale(self.silly_image, (self.cell_size, self.cell_size))
+
+        # posizione precedente del nemico (usata dall'ASP come prev(X,Y))
+        self.prev_silly_pos = None
 
         self.coin_image = pygame.image.load("stuff/coin_colour.png")
         self.coin_image = pygame.transform.scale(self.coin_image, (self.cell_size, self.cell_size))
@@ -247,23 +245,27 @@ class MazeGame:
         dir_map = {"0":"up","1":"right","2":"down","3":"left", 0:"up",1:"right",2:"down",3:"left"}
         move = dir_map.get(move, move)  # normalizza in 'up/down/left/right'
 
-        delta = {"up":(0,-1), "down":(0,1), "left":(-1,0), "right":(1,0)}
-        dx, dy = delta.get(move, (0,0))
+        # usa (row, col) — up = row-1, down = row+1, left = col-1, right = col+1
+        delta = {"up":(-1,0), "down":(1,0), "left":(0,-1), "right":(0,1)}
+        dr, dc = delta.get(move, (0,0))
 
-        x, y = map(int, self.silly_pos)
-        nx, ny = x + dx, y + dy
+        row, col = map(int, self.silly_pos)
+        nrow, ncol = row + dr, col + dc
 
         # blocco su muro: non muovere ma stampa (debug chiaro)
-        if (nx, ny) in self.walls_set:
-            print(f"[AI] Move '{move}' bloccata da wall @ {(nx,ny)}. Pos attuale={self.silly_pos}")
+        if (nrow, ncol) in self.walls_set:
+            print(f"[AI] Move '{move}' bloccata da wall @ {(nrow,ncol)}. Pos attuale={self.silly_pos}")
             return
 
-        # aggiorna posizione logica
-        self.silly_pos = (nx, ny)
+        # salva posizione precedente prima di aggiornare
+        self.prev_silly_pos = self.silly_pos[:]
 
-        # aggiorna sprite/rect se esiste
+        # aggiorna posizione logica (manteniamo lista come il codice originale)
+        self.silly_pos = [nrow, ncol]
+
+        # aggiorna sprite/rect se esiste (usando offset e cell_size)
         if hasattr(self, "silly_rect"):
-            self.silly_rect.topleft = (nx * self.cell_w, ny * self.cell_h)
+            self.silly_rect.topleft = (self.x_offset + ncol * self.cell_size, self.y_offset + nrow * self.cell_size)
 
         print(f"[AI] MOVE({move}) -> {self.silly_pos}")
 
@@ -343,7 +345,7 @@ class MazeGame:
 
     def move_silly_with_asp(self):
         # passa lo stato corrente all’AI
-        self.ai.set_state(self_pos=self.silly_pos, player_pos=self.player_pos, walls=self.walls)
+        self.ai.set_state(self_pos=self.silly_pos, player_pos=self.player_pos, walls=self.walls, prev_pos=self.prev_silly_pos, rows_cols=(self.rows, self.cols))
         # prepara il bundle e le opzioni
         self.ai.startAsp()
         # prendi la mossa (stringa 'up'.. o numero '0'..)
