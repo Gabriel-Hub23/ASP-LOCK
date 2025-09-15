@@ -1,440 +1,168 @@
 # ASP/EMBASP/lnc_solver.py
-# ------------------------------------------------------------
-# Solver EmbASP per Lock'n'Chase
-# - Stessa struttura del tuo esempio (startAsp / recallAsp / clear_ia)
-# - Mapping predicati: self/2, player/2, wall/2, chosen_move/1
-# - chosen_move(D) letto come SymbolicConstant e normalizzato in stringa
-# - Nessuna modifica al programma ASP (.asp)
-# ------------------------------------------------------------
+# Minimal, robust Solver per Lock'n'Chase — usa DLV2 nativo tramite subprocess
+# Fornisce API compatibili: set_state, startAsp, recallAsp, clear_ia
 
-from embasp.specializations.dlv2.desktop.dlv2_desktop_service import DLV2DesktopService
-from embasp.languages.asp.asp_input_program import ASPInputProgram
-from embasp.languages.asp.asp_mapper import ASPMapper
-from embasp.languages.asp.answer_sets import AnswerSets
-from embasp.platforms.desktop.desktop_handler import DesktopHandler
-from embasp.languages.predicate import Predicate
-from embasp.languages.asp.symbolic_constant import SymbolicConstant
-from embasp.base.option_descriptor import OptionDescriptor
-import tempfile, subprocess, os
-from embasp.languages.asp.asp_mapper import ASPMapper
+import tempfile
+import subprocess
+import os
 import re
+from typing import List, Tuple, Optional
 
-
-
-
-from ASP.EMBASP.predicates import *
-
-# =============== SOLVER LOCK’N’CHASE ==================
 
 class SolverLNC:
-    """
-    Uso tipico:
-        ai = SolverLNC(
-        dlv_path="ASP/DLV/dlv2.exe",
-        encoding_path="ASP/CODE/lnc_ai.asp",   # <-- deve essere questo
-        debug=True
-)
 
-        )
-        ai.set_state(self_pos=(sx,sy), player_pos=(px,py), walls=[(x,y),...])
-        ai.startAsp()
-        move = ai.recallAsp()   # "up"/"down"/"left"/"right"
-    """
-    def __init__(self, dlv_path: str, encoding_path: str, debug: bool = True, max_models: int = 1):
-        self.debug = bool(debug)
-        self.max_models = int(max_models)
+    def __init__(self, dlv_path: str, encoding_path: str, debug: bool = False, max_models: int = 1):
+        # configurazione esterna
         self.dlv_path = dlv_path
         self.encoding_path = encoding_path
+        self.debug = bool(debug)
+        self.max_models = int(max_models)
 
-        self.dir_map={"0":"up","1":"right","2":"down","3":"left"}
+        # opzionale: mappa numerica -> direzioni
+        self.dir_map = {"0": "up", "1": "right", "2": "down", "3": "left"}
 
-        # Stato dinamico
-        self.self_pos = (0, 0)
-        self.player_pos = (0, 0)
-        self.walls = []   # lista di tuple (x,y)
+        # stato dinamico (coordinate Python: (row, col))
+        self.self_pos: Tuple[int, int] = (0, 0)
+        self.player_pos: Tuple[int, int] = (0, 0)
+        self.walls: List[Tuple[int, int]] = []
+        # previous position (optional), lock cells list, and optional grid size
+        self.prev_pos: Optional[Tuple[int, int]] = None
+        self.lock_cells: List[Tuple[int, int]] = []
+        self.rows_cols: Optional[Tuple[int, int]] = None
 
-        # Handler DLV2
-        self.__handler = DesktopHandler(DLV2DesktopService(self.dlv_path))
-        self.__program = ASPInputProgram()
-        self.__index = None  # facoltativo, per compat con remove_program_from_id
+        # carica encoding su stringa
+        self._encoding = self.getEncoding(self.encoding_path)
 
-        # Registro le classi una sola volta
-        mapper = ASPMapper.get_instance()
-        mapper.register_class(Self)
-        mapper.register_class(Player)
-        mapper.register_class(Wall)
-        mapper.register_class(ChosenMove)
-
-        # Carica l’encoding
-        self.__encoding = self.getEncoding(self.encoding_path)
-
-    # -------- API compatibile col tuo stile --------
-
-    def set_state(self, self_pos, player_pos, walls):
-        """Imposta lo stato corrente (posizioni e muri)."""
+    def set_state(self, self_pos: Tuple[int, int], player_pos: Tuple[int, int], walls: List[Tuple[int, int]], prev_pos: Optional[Tuple[int,int]] = None, rows_cols: Optional[Tuple[int,int]] = None, locks: Optional[List[Tuple[int,int]]] = None):
         self.self_pos = tuple(self_pos)
         self.player_pos = tuple(player_pos)
         self.walls = list(walls) if walls is not None else []
+        self.prev_pos = tuple(prev_pos) if prev_pos is not None else None
+        self.rows_cols = tuple(rows_cols) if rows_cols is not None else None
+        self.lock_cells = list(locks) if locks is not None else []
 
-    '''
     def startAsp(self):
-        """Inizializza (handler pulito), costruisce programma, aggiunge #show e opzioni."""
-        # Handler NUOVO ogni volta (niente residui di programmi/opzioni)
-        self.__handler = DesktopHandler(DLV2DesktopService(self.dlv_path))
+        # mantenuta per compatibilità con API: non fa nulla nella versione nativa
+        return
 
-        # Programma principale: encoding + facts mappati
-        self.__program = ASPInputProgram()
-        self.__init_program()
-        self.__handler.add_program(self.__program)
+    def clear_ia(self):
+        # mantenuta per compatibilità
+        return
 
+    # --- internals ---
+    def __build_bundle(self) -> str:
+        # positions in Python are (row, col) — convert to (col,row) for ASP
+        sr, sc = self.self_pos
+        pr, pc = self.player_pos
+        sx, sy = int(sc), int(sr)
+        px, py = int(pc), int(pr)
 
-        # Opzioni minime (NO -filter, per non sopprimere debug)
-        try:
-            self.__handler.add_option(OptionDescriptor("-silent"))
-            self.__handler.add_option(OptionDescriptor(f"-n=0"))
-        except Exception:
-            pass
-        '''
-    
-    def startAsp(self):
-        # handler nuovo pulito
-        self.__handler = DesktopHandler(DLV2DesktopService(self.dlv_path))
+        facts = [f"self({sx},{sy}).", f"player({px},{py})."]
+        facts += [f"wall({int(x)},{int(y)})." for (x, y) in self.walls]
+        if self.prev_pos is not None:
+            prr, pcc = self.prev_pos
+            px_prev, py_prev = int(pcc), int(prr)
+            facts.append(f"prev({px_prev},{py_prev}).")
+        # emit locked cells if provided (convert row,col -> x=col,y=row)
+        if self.lock_cells:
+            for (lr, lc) in self.lock_cells:
+                try:
+                    lx, ly = int(lc), int(lr)
+                    facts.append(f"locked({lx},{ly}).")
+                except Exception:
+                    continue
+        # include rows/cols facts if provided (accept tuple (rows,cols))
+        if self.rows_cols is not None:
+            try:
+                r, c = self.rows_cols
+                r_i, c_i = int(r), int(c)
+                facts.append(f"rows({r_i}).")
+                facts.append(f"cols({c_i}).")
+                # emit explicit numeric domain facts num(0). num(1). ... up to max(rows,cols)-1
+                maxn = max(0, max(r_i, c_i) - 1)
+                for i in range(0, maxn + 1):
+                    facts.append(f"num({i}).")
+            except Exception:
+                # ignore if malformed
+                pass
+        bundle = [self._encoding, "% --- FACTS ---", "\n".join(facts), "% --- SHOW ---", "#show chosen_move/1."]
+        if self.debug:
+            print("--- BUNDLE ---")
+            print("\n".join(bundle))
+        return "\n\n".join(bundle)
 
-        # prepara il programma (scrive il bundle temp e fa add_files_path)
-        self.__init_program()
-        self.__handler.add_program(self.__program)
-
-        # opzioni minime
-        try:
-            self.__handler.add_option(OptionDescriptor("-silent"))
-            self.__handler.add_option(OptionDescriptor(f"-n={self.max_models}"))  # per vedere tutti: -n=0
-            # niente -filter, lasciamo visibile chosen_move via #show
-        except Exception:
-            pass
-
-
-    def __native_get_move(self, n_models: int = 1):
-        """Esegue DLV2 nativo su (encoding+facts+#show) e ritorna la PRIMA chosen_move trovata.
-        Ritorna la stringa grezza dentro le parentesi (es. 'right' o '3').
-        Se self.dir_map è definita, la usa per mappare: es. '1' -> 'right'."""
-        # --- costruisci il bundle identico a quello passato a EmbASP ---
-        mapper = ASPMapper.get_instance()
-        sx, sy = self.self_pos
-        px, py = self.player_pos
-
-        facts_txt = [
-            mapper.get_string(Self(sx, sy)) + ".",
-            mapper.get_string(Player(px, py)) + ".",
-        ] + [mapper.get_string(Wall(x, y)) + "." for (x, y) in self.walls]
-
-        bundle = []
-        bundle.append(self.__encoding)
-        bundle.append("\n% --- FACTS ---")
-        bundle.append("\n".join(facts_txt))
-        bundle.append("\n% --- SHOW ---")
-        bundle.append("#show chosen_move/1.\n")
-        bundle_str = "\n".join(bundle)
-
-        tmp_path = None
+    def __run_dlv(self, bundle_str: str, n_models: int = 1) -> Tuple[Optional[str], str]:
+        """Scrive bundle su file temporaneo, chiama dlv2, ritorna (token, raw_stdout).
+        token è il primo valore trovato dentro chosen_move(...)."""
+        tmp = None
         try:
             with tempfile.NamedTemporaryFile("w", suffix=".lp", delete=False, encoding="utf-8") as tf:
                 tf.write(bundle_str)
-                tmp_path = tf.name
+                tmp = tf.name
 
-            cmd = [self.dlv_path, f"-n={n_models}", tmp_path]
-            # usa -silent se vuoi output più pulito:
-            # cmd.insert(1, "-silent")
+            cmd = [self.dlv_path, f"-n={n_models}", tmp]
+
+            if self.debug:
+                print("DLV2 CMD:", " ".join(cmd))
 
             proc = subprocess.run(cmd, capture_output=True, text=True)
             out = proc.stdout or ""
+            err = proc.stderr or ""
 
-            # cerca chosen_move(<token>)
-            m = re.search(r"chosen_move\(([^)]+)\)", out)
-            if not m:
-                return None
-
-            token = m.group(1)  # es. 'right' oppure '3'
-
-            # normalizza: togli eventuali apici/spazi
-            token = token.strip().strip('"').strip("'")
-
-            # se hai una mappa numerica -> testuale, applicala
-            if self.dir_map and token in self.dir_map:
-                return self.dir_map[token]
-
-            return token
-        finally:
-            try:
-                if tmp_path:
-                    os.unlink(tmp_path)
-            except Exception:
-                pass
-
-
-    def recallAsp(self):
-        """Esegue il solver e restituisce la direzione ('up','down','left','right')."""
-        # Se in precedenza avevi salvato id programma, lo rimuovi (optional)
-        if self.__index is not None:
-            try:
-                self.__handler.remove_program_from_id(self.__index)
-            except Exception:
-                pass
-
-        answer_sets: AnswerSets = self.__handler.start_sync()
-
-        oas = answer_sets.get_answer_sets()
-        if not oas:
-            # fallback: prendi la mossa direttamente da DLV2 nativo
-            move_token = self.__native_get_move(n_models=1)  # prende la prima
             if self.debug:
-                print("AS#0 → native chosen_move:", move_token)
-            # se hai dir_map, __native_get_move l'ha già applicata; altrimenti puoi mapparla qui
-            # Se è già una di up/down/left/right ok; se è un numero e non hai mappa, restituiscilo pure o metti un default
-            if move_token in ("up", "down", "left", "right"):
-                return move_token
-            # prova una mappa di default se vuoi (EDITALA con la tua convenzione)
-            
+                print("DLV2 STDOUT:", out)
+                if err.strip():
+                    print("DLV2 STDERR:", err)
 
+            # cerca chosen_move(...) nel stdout (case-insensitive)
+            m = re.search(r"[cC]hosen_move\(([^)]+)\)", out)
+            if not m:
+                # fallback: controlla anche output in forma {Chosen_move(right)}
+                m2 = re.search(r"\{\s*[cC]hosen_move\(([^)]+)\)\s*\}", out)
+                if m2:
+                    token = m2.group(1)
+                else:
+                    return None, out
+            else:
+                token = m.group(1)
 
-        # ===== DEBUG: stampa gli answer set in chiaro =====
-        try:
-            mapper = ASPMapper.get_instance()
-            print("---------------=== ANSWER SETS (text) ===--------------")
-            idx = 0
-            for ans in answer_sets.get_answer_sets():
-                idx += 1
-                out = []
-                for a in ans.get_atoms():
-                    try:
-                        # prova a serializzare l’atomo con il mapper (restituisce 'pred(args)')
-                        s = mapper.get_string(a)
-                    except Exception:
-                        s = str(a)
-                    out.append(s)
-                print(f"AS#{idx}: {out}")
-            if idx == 0:
-                print("AS#0: <no answer sets>")
-        except Exception as e:
-            print("DEBUG TEXT DUMP ERROR:", e)
-        # ================================================
+            token = token.strip().strip('"').strip("'")
+            # applica mappa numerica se presente
+            if token in self.dir_map:
+                return self.dir_map[token], out
 
-        # ===== ESTRAZIONE MOSSA =====
-        # a) tentativo “pulito” via mapper (SymbolicConstant)
-        for ans in answer_sets.get_answer_sets():
-            for a in ans.get_atoms():
-                # importa ChosenMove se è in un altro modulo / stessa classe tua
-                if a.__class__.__name__ == "ChosenMove":
-                    val = None
-                    try:
-                        val = a.get_d()
-                    except Exception:
-                        val = None
-
-                    # Normalizza SymbolicConstant -> stringa
-                    direction = None
-                    if val is not None:
-                        for m in ("get_value", "get_symbol", "get_name"):
-                            if hasattr(val, m):
-                                try:
-                                    direction = getattr(val, m)()
-                                    break
-                                except Exception:
-                                    pass
-                        if direction is None:
-                            for attr in ("value", "symbol", "name"):
-                                if hasattr(val, attr):
-                                    direction = getattr(val, attr)
-                                    break
-                        if direction is None:
-                            direction = str(val)
-
-                    if direction in ("up", "down", "left", "right"):
-                        return direction
-
-
-
-        # Debug: stampa answer set
-        if self.debug:
-            print("=== ANSWER SETS (raw objects) ===")
-            try:
-                for i, ans in enumerate(answer_sets.get_answer_sets(), 1):
-                    print(f"AS#{i}: {[str(a) for a in ans.get_atoms()]}")
-            except Exception as e:
-                print("DEBUG ANSWER PRINT ERROR:", e)
-
-        # Estrai chosen_move/1
-        move = self.__extract_move(answer_sets)
-        if self.debug:
-            print("Mossa scelta:", move)
-
-        
-        # dopo aver finito di usare answer_sets...
-        try:
-            if hasattr(self, "_tmp_bundle") and self._tmp_bundle:
-                os.unlink(self._tmp_bundle.name)
-                self._tmp_bundle = None
-        except Exception:
-            pass
-
-
-        # Fallback a prova di bomba
-        return move if move in ("up", "down", "left", "right") else "up"
-
-    def clear_ia(self):
-        """Svuota l'handler (come nel tuo esempio)."""
-        try:
-            self.__handler.remove_all()
-        except Exception:
-            pass
-
-    # -------- Helpers interni --------
-    def __init_program(self):
-        """Crea un file temporaneo con encoding + fatti + #show e lo passa a DLV2 come file."""
-        # Costruisci facts in testo (come già fai ora)
-        mapper = ASPMapper.get_instance()
-        sx, sy = self.self_pos
-        px, py = self.player_pos
-
-        facts_txt = [
-            mapper.get_string(Self(sx, sy)) + ".",
-            mapper.get_string(Player(px, py)) + ".",
-        ] + [mapper.get_string(Wall(x, y)) + "." for (x, y) in self.walls]
-
-        # Bundle = regole + fatti + show (senza toccare il tuo .asp)
-        bundle = []
-        bundle.append(self.__encoding)
-        bundle.append("\n% --- FACTS ---")
-        bundle.append("\n".join(facts_txt))
-        bundle.append("\n% --- SHOW ---")
-        bundle.append("#show chosen_move/1.\n")  # puoi aggiungere anche self/player/wall se vuoi vederli
-
-        bundle_str = "\n".join(bundle)
-
-        # Scrivi il bundle su file temp e passalo come file a EmbASP
-        self._tmp_bundle = tempfile.NamedTemporaryFile("w", suffix=".lp", delete=False, encoding="utf-8")
-        self._tmp_bundle.write(bundle_str)
-        self._tmp_bundle.flush()
-        self._tmp_bundle.close()
-
-        # Pulisci e ricrea l'ASPInputProgram, poi passa il FILE, non la stringa
-        self.__program = ASPInputProgram()
-        self.__program.add_files_path(self._tmp_bundle.name)
-
-        if self.debug:
-            print("=== BUNDLE PATH ===", self._tmp_bundle.name)
-            print("=== BUNDLE CONTENT ===\n", bundle_str)
-    '''
-    def __init_program(self):
-        # Regole
-        self.__program.add_program(self.__encoding)
-
-        # Fatti dinamici come TESTO (bypass add_object_input)
-        mapper = ASPMapper.get_instance()
-        sx, sy = self.self_pos
-        px, py = self.player_pos
-
-        facts_txt = []
-        facts_txt.append(mapper.get_string(Self(sx, sy)) + ".")
-        facts_txt.append(mapper.get_string(Player(px, py)) + ".")
-        for (x, y) in self.walls:
-            facts_txt.append(mapper.get_string(Wall(x, y)) + ".")
-
-        facts_block = "\n".join(facts_txt) + "\n"
-        self.__program.add_program(facts_block)
-
-        # DEBUG: stampa il blocco fatti che stai passando al solver
-        if self.debug:
-            print("----------------=== FACTS BLOCK ===-----------------")
-            print(facts_block)
-    '''
-
-    def __extract_move(self, answer_sets: AnswerSets):
-        """Estrae chosen_move/1 normalizzando SymbolicConstant -> stringa."""
-        # 1) prova diretta: getter del mapper -> SymbolicConstant -> stringa
-        for ans in answer_sets.get_answer_sets():
-            for a in ans.get_atoms():
-                if isinstance(a, ChosenMove):
-                    direction = self.__normalize_symbol(a.get_d())
-                    if direction in ("up", "down", "left", "right"):
-                        return direction
-
-        # 2) fallback: parsing da stringa
-        import re
-        for ans in answer_sets.get_answer_sets():
-            for a in ans.get_atoms():
-                s = str(a)
-                m = re.search(r"chosen_move\((up|down|left|right)\)", s)
-                if m:
-                    return m.group(1)
-
-        # 3) niente trovato
-        return None
-    
-
-    def __native_diag(self):
-        """Esegue DLV2 fuori da EmbASP con lo stesso programma (regole+fatti+#show) e stampa stdout/stderr."""
-        try:
-            # costruisci il bundle: encoding + facts (come già in __init_program) + #show
-            mapper = ASPMapper.get_instance()
-            sx, sy = self.self_pos
-            px, py = self.player_pos
-
-            facts_txt = [
-                mapper.get_string(Self(sx, sy)) + ".",
-                mapper.get_string(Player(px, py)) + ".",
-            ] + [mapper.get_string(Wall(x, y)) + "." for (x, y) in self.walls]
-
-            bundle = []
-            bundle.append(self.__encoding)
-            bundle.append("\n% --- FACTS ---")
-            bundle.append("\n".join(facts_txt))
-            bundle.append("\n% --- SHOW ---")
-            bundle.append("#show self/2.\n#show player/2.\n#show wall/2.\n#show chosen_move/1.\n")
-            bundle_str = "\n".join(bundle)
-
-            # salva su file temporaneo
-            with tempfile.NamedTemporaryFile("w", suffix=".lp", delete=False, encoding="utf-8") as tf:
-                tf.write(bundle_str)
-                tmp_path = tf.name
-
-            # esegui dlv2 nativo (no -silent per vedere eventuali errori)
-            cmd = [self.dlv_path, "-n=0", tmp_path]
-            print("=== DLV2 native CMD ===", " ".join(cmd))
-            out = subprocess.run(cmd, capture_output=True, text=True)
-            print("=== DLV2 native STDOUT ===")
-            print(out.stdout if out.stdout.strip() else "<vuoto>")
-            print("=== DLV2 native STDERR ===")
-            print(out.stderr if out.stderr.strip() else "<vuoto>")
-        except Exception as e:
-            print("NATIVE DIAG ERROR:", e)
+            return token.lower(), out
         finally:
             try:
-                os.unlink(tmp_path)
+                if tmp and os.path.exists(tmp):
+                    os.unlink(tmp)
             except Exception:
                 pass
 
-    @staticmethod
-    def __normalize_symbol(val):
-        """Converte SymbolicConstant in 'up'/'down'/'left'/'right' se possibile."""
-        if val is None:
-            return None
-        # prova metodi comuni
-        for m in ("get_value", "get_symbol", "get_name"):
-            if hasattr(val, m):
-                try:
-                    v = getattr(val, m)()
-                    if isinstance(v, str):
-                        return v
-                except Exception:
-                    pass
-        # prova attributi comuni
-        for attr in ("value", "symbol", "name"):
-            if hasattr(val, attr):
-                v = getattr(val, attr)
-                if isinstance(v, str):
-                    return v
-        # fallback stringa
-        return str(val)
+    def recallAsp(self) -> str:
+        """Esegue il solver e restituisce una direzione valida; fallback 'up'."""
+        bundle = self.__build_bundle()
+        # Prova con max_models impostato
+        token, raw = self.__run_dlv(bundle, n_models=self.max_models)
+        if self.debug:
+            print("PARSED TOKEN:", token)
+        if token and token in ("up", "down", "left", "right"):
+            return token
+
+        # se token non valido, prova a cercare esplicitamente nelle righe di output (case-insensitive)
+        found = re.search(r"(?i)chosen_move\((up|down|left|right)\)", raw)
+        if found:
+            return found.group(1).lower()
+
+        # ultima risorsa: prova con n_models=0 (tutte le soluzioni)
+        token2, raw2 = self.__run_dlv(bundle, n_models=0)
+        if self.debug:
+            print("SECOND PASS TOKEN:", token2)
+        if token2 and token2 in ("up", "down", "left", "right"):
+            return token2
+
+        # fallback
+        return "up"
 
     @staticmethod
     def getEncoding(file_path: str) -> str:
